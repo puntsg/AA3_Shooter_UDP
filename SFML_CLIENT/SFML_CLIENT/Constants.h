@@ -117,3 +117,10 @@ namespace Config
         const float BACK_BUTTON_H = 50.f;
     }
 }
+
+namespace GameConstants{
+    namespace Health {
+        const short INITIAL_LIFES = 3;
+        const short INITIAL_HEALTH = 3;
+    }
+}
