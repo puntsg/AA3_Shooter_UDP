@@ -1,5 +1,5 @@
 #include "HealthBehaviour.h"
-#include "Constants.h"
+#include "../../Constants.h"
 
 HealthBehaviour::HealthBehaviour()
 {

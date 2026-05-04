@@ -1,6 +1,6 @@
 #pragma once
 #include <SFML/Graphics.hpp>
-#include "Entity.h"
+#include "../Entity.h"
 class UIElement: public Entity
 {
 public :

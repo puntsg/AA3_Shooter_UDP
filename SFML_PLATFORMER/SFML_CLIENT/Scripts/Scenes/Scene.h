@@ -2,7 +2,7 @@
 #include <vector>
 #include <SFML/Window/Event.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
-#include "Entity.h"
+#include "../Entities/Entity.h"
 class Scene
 {
 protected:

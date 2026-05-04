@@ -5,22 +5,17 @@
 #include <SFML/Graphics.hpp>
 #include "SceneManager.h"
 #include <string>
-#include "Button.h"
-#include "InputField.h"
-#include "Constants.h"
+#include "../Entities/UI/Button.h"
+#include "../Constants.h"
 
-class LoginScene: public Scene
+class TitleScene: public Scene
 {
 private:
     sf::Font font;
-    InputField* usernameInputfield;
-    InputField* passwordInputfield;
-    Button* loginButton;
-    Button* signinButton;
-    Button* closeButton;
+    Button* playButton;
 
 public:
-    LoginScene();
+    TitleScene();
 
     void OnEnter() override;
 

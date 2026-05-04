@@ -4,20 +4,17 @@
 #include <string>
 #include "SceneManager.h"
 #include "GameScene.h"
-#include "LobbyScene.h"
-#include "LoginScene.h"
+#include "TitleScene.h"
 
 int main()
 {
-    LoginScene* loginScene = new LoginScene();
+    TitleScene* titleScene = new TitleScene();
     GameScene* gameScene = new GameScene();
-    LobbyScene* lobbyScene = new LobbyScene();
     SM.window = sf::RenderWindow(sf::VideoMode({ Config::Window::WIDTH,Config::Window::HEIGHT }), Config::Window::NAME);
     SM.window.setFramerateLimit(Config::Window::FPS);
-    SM.AddScene("LoginScene", loginScene);
+    SM.AddScene("TitleScene", titleScene);
     SM.AddScene("GameScene", gameScene);
-    SM.AddScene("LobbyScene", lobbyScene);
-    SM.InitFirstScene("LoginScene");
+    SM.InitFirstScene("TitleScene");
 
     sf::Clock dtClock;
     while (SM.window.isOpen())
