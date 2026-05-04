@@ -5,6 +5,7 @@
 void GameScene::OnEnter()
 {
     std::cout << "Entrando a GameScene..." << std::endl;
+    p = new Player();
  }
 
 void GameScene::HandleEvent(const sf::Event& event) {
@@ -19,16 +20,18 @@ void GameScene::HandleEvent(const sf::Event& event) {
 
 void GameScene::Update(float dt)
 {
-    
+   
 }
 
 void GameScene::Render(sf::RenderWindow& window)
 {
-    
+     p->Update(1);
 }
 
 void GameScene::OnExit()
 {
+    delete p;
+    p = nullptr;
     std::cout << "Saliendo de GameScene..." << std::endl;
     
 }

@@ -2,12 +2,13 @@
 #include "Scene.h"
 #include <iostream>
 #include <vector>
+#include "..//Entities/Player/Player.h"
 #include <SFML/Network.hpp>
 
 class GameScene : public Scene
 {
 private:
-
+    Player* p; 
 public:
     GameScene() = default;
 
