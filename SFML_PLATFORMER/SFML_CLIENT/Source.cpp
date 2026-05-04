@@ -1,0 +1,47 @@
+#include <SFML/Network.hpp>
+#include <SFML/Graphics.hpp>
+#include <iostream>
+#include <string>
+#include "SceneManager.h"
+#include "GameScene.h"
+#include "LobbyScene.h"
+#include "LoginScene.h"
+
+int main()
+{
+    LoginScene* loginScene = new LoginScene();
+    GameScene* gameScene = new GameScene();
+    LobbyScene* lobbyScene = new LobbyScene();
+    SM.window = sf::RenderWindow(sf::VideoMode({ Config::Window::WIDTH,Config::Window::HEIGHT }), Config::Window::NAME);
+    SM.window.setFramerateLimit(Config::Window::FPS);
+    SM.AddScene("LoginScene", loginScene);
+    SM.AddScene("GameScene", gameScene);
+    SM.AddScene("LobbyScene", lobbyScene);
+    SM.InitFirstScene("LoginScene");
+
+    sf::Clock dtClock;
+    while (SM.window.isOpen())
+    {
+        float dt = dtClock.restart().asSeconds();
+
+        while (const std::optional<sf::Event> event = SM.window.pollEvent())
+        {
+            if (event->is<sf::Event::Closed>())
+                SM.window.close();
+
+
+            if (SM.GetCurrentScene())
+                SM.GetCurrentScene()->HandleEvent(*event);
+        }
+
+        SM.UpdateCurrentScene(dt);
+        SM.window.clear(Config::UI::COLOR_BACKGROUND);
+
+        if (SM.GetCurrentScene())
+            SM.GetCurrentScene()->Render(SM.window);
+
+        SM.window.display();
+    }
+
+    return 0;
+}
