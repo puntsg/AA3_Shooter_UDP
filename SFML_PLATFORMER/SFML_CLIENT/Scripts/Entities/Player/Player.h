@@ -4,6 +4,7 @@
 #include <SFML/Graphics.hpp>
 #include <optional>
 #include "../../Scenes/SceneManager.h"
+#include "../AnimatedRenderer.h"
 #include "../Transform.h"
 
 class Player: public Entity
