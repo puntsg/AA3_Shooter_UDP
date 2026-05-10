@@ -25,8 +25,10 @@ void AnimatedRenderer::PlayAnimation(const std::string& name)
 
 void AnimatedRenderer::render(sf::RenderWindow& window)
 {
-	if (sprite.has_value())
+	if (sprite.has_value()) {
+		sprite->setPosition(transform->position);
 		window.draw(*sprite);
+	}
 }
 
 void AnimatedRenderer::Update(float dt)

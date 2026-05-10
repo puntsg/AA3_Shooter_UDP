@@ -13,7 +13,7 @@ public:
     sf::Color color = sf::Color::White;
     bool isSpectator = false;
     bool isLocal = false;
-
+    
     AnimatedRenderer* animRenderer = nullptr;
 
     Player();

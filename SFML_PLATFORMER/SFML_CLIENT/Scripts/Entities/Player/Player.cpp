@@ -36,5 +36,13 @@ Player::Player(int _id, std::string _name, int _score, sf::Color _color, bool _i
 
 void Player::Update(float dt)
 {
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A))
+		transform.position.x -= 5 * dt;
+	else if(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D))
+		transform.position.x += 5 * dt;
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W))
+		transform.position.y -= 5 * dt;
+	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S))
+		transform.position.y += 5 * dt;
 	animRenderer->Update(dt);
 }
