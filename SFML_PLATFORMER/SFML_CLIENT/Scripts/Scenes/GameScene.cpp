@@ -20,12 +20,12 @@ void GameScene::HandleEvent(const sf::Event& event) {
 
 void GameScene::Update(float dt)
 {
-   
+    p->Update(dt);
 }
 
 void GameScene::Render(sf::RenderWindow& window)
 {
-     p->Update(1);
+    p->animRenderer->render(window);
 }
 
 void GameScene::OnExit()

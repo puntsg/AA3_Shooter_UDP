@@ -1,29 +1,39 @@
 #pragma once
 #include "Renderer.h"
 #include <functional>
-class AnimatedRenderer :
-    public Renderer
+#include <optional>
+#include <SFML/Graphics/Sprite.hpp>
+#include <SFML/Graphics/Texture.hpp>
+
+struct FrameData {
+	sf::Vector2i frameSize;
+	sf::Vector2i frameOffset;
+};
+struct AnimationData {
+	std::string name;
+	int fps;
+	std::vector<FrameData> Frames;
+};
+
+class AnimatedRenderer : public Renderer
 {
 private:
-	sf::Vector2i frameSize;
-	int fps;
-	bool looping;
-	float frameTime;
-	float currentFrameTime;
-	sf::Vector2f sourceSize;
-	bool hasLooped;
+	std::vector<AnimationData> animations;
+	AnimationData* currentAnimation = nullptr;
+	int currentFrameIndex = 0;
+	float frameTimer = 0.f;
 public:
-	AnimatedRenderer(Transform* transform, std::string resourcePath,
-		sf::Vector2i sourceOffset, sf::Vector2i sourceSize,
-		int frameWidth, int frameHeight,
-		int fps, bool looping);
-	AnimatedRenderer(Transform* transform, std::string resourcePath,
-		sf::Vector2i sourceOffset, sf::Vector2i sourceSize,
-		int frameWidth, int frameHeight,
-		int fps, bool looping, bool executeOnStart);
-	void PlayAnimation();
-	virtual void Update(float dt) override;
-	virtual void render();
-	std::function <void()> onLooped;
+	sf::Texture texture;
+	std::optional<sf::Sprite> sprite;
+	std::function<void()> onAnimationLooped;
+
+	AnimatedRenderer(Transform* t) : Renderer(t) {}
+
+	bool LoadTexture(const std::string& path);
+	void AddAnimation(const AnimationData& anim);
+	void PlayAnimation(const std::string& name);
+
+	void render(sf::RenderWindow& window) override;
+	void Update(float dt) override;
 };
 

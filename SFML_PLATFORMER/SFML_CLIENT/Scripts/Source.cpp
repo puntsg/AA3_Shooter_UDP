@@ -2,9 +2,9 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <string>
-#include "SceneManager.h"
-#include "GameScene.h"
-#include "TitleScene.h"
+#include "../Scripts/Scenes/SceneManager.h"
+#include "../Scripts/Scenes/GameScene.h"
+#include "../Scripts/Scenes/TitleScene.h"
 
 int main()
 {
