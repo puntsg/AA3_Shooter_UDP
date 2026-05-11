@@ -1,17 +1,54 @@
 #include "TileMap.h"
+#include "SpriteRenderer.h"
 #include <iostream>
 #include <fstream>
 
-void TileMap::initMap(std::string mapDatafilePath)
+TileMap::~TileMap()
 {
-	//https://www.w3schools.com/cpp/cpp_files.asp
-	sf::Vector2 currentPos = sf::Vector2(0, 0);
-	std::string fileString;
-	std::ifstream MyReadFile(mapDatafilePath);
-	std::cout << "Generating map";
-	while (std::getline(MyReadFile,fileString)) {
-		std::cout << fileString + "\n";
-		//aqui inicialzar las tiles
+	for (auto& row : tileGrid)
+		for (Tile* tile : row)
+			delete tile;
+}
+
+void TileMap::initMap(const std::string& mapDatafilePath)
+{
+	std::ifstream file(mapDatafilePath);
+	if (!file.is_open()) {
+		std::cout << "Error: no se pudo abrir " << mapDatafilePath << "\n";
+		return;
 	}
-	MyReadFile.close();
+
+	sf::Vector2f currentPos = sf::Vector2f(0, 0);
+	std::string line;
+	while (std::getline(file, line)) {
+		std::vector<Tile*> gridRow;
+		for (char c : line) {
+			Tile* tile = new Tile();
+			tile->GetTransform()->position = currentPos;
+
+			if (c == '#') {
+				tile->hasCollision = true;
+				SpriteRenderer* r = new SpriteRenderer(tile->GetTransform());
+				r->texture.loadFromFile("Sprites/Tiles/Dirt.png");
+				r->sprite.emplace(r->texture);
+				tile->SetRenderer(r);
+			}
+
+			gridRow.push_back(tile);
+			currentPos.x += tileSize.x;
+		}
+		tileGrid.push_back(gridRow);
+		currentPos.x = 0;
+		currentPos.y += tileSize.y;
+	}
+	file.close();
+	std::cout << "Mapa generado\n";
+}
+
+void TileMap::render(sf::RenderWindow& window)
+{
+	for (auto& row : tileGrid)
+		for (Tile* tile : row)
+			if (tile->GetRenderer())
+				tile->GetRenderer()->render(window);
 }

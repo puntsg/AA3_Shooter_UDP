@@ -26,6 +26,7 @@ void GameScene::Update(float dt)
 
 void GameScene::Render(sf::RenderWindow& window)
 {
+    t->render(window);
     p->animRenderer->render(window);
 }
 
@@ -33,6 +34,7 @@ void GameScene::OnExit()
 {
     delete p;
     p = nullptr;
+    delete t;
+    t = nullptr;
     std::cout << "Saliendo de GameScene..." << std::endl;
-    
 }

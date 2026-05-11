@@ -147,6 +147,7 @@
     <ClCompile Include="Scripts\Scenes\TitleScene.cpp" />
     <ClCompile Include="Scripts\Scenes\SceneManager.cpp" />
     <ClCompile Include="Scripts\Source.cpp" />
+    <ClCompile Include="Scripts\Entities\SpriteRenderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Scripts\Entities\AnimatedRenderer.h" />
@@ -164,6 +165,7 @@
     <ClInclude Include="Scripts\Scenes\SceneManager.h" />
     <ClInclude Include="Scripts\Entities\Transform.h" />
     <ClInclude Include="Scripts\Entities\UI\UIElement.h" />
+    <ClInclude Include="Scripts\Entities\SpriteRenderer.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="Sprites\duck.png" />
