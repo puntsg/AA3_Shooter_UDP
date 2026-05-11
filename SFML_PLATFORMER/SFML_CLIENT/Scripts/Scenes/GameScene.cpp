@@ -1,11 +1,12 @@
 #include "GameScene.h"
 #include <iostream>
 
-
 void GameScene::OnEnter()
 {
     std::cout << "Entrando a GameScene..." << std::endl;
     p = new Player();
+    t = new TileMap();
+    t->initMap("Tilemaps/Tilemap1.txt");
  }
 
 void GameScene::HandleEvent(const sf::Event& event) {
