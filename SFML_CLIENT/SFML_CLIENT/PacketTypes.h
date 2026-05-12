@@ -3,21 +3,22 @@
 enum PacketType
 {
 	NONE = 0,
-	//Conexion inicial
-	HANDSHAKE,
+
+	//Conexion inicial / launcher
+	CHECK_MAP,
+	MAP_STATUS,
+	MAP_REQUEST,
+	MAP_RESPONSE,
 
 	//Login/registro      
-	LOGIN,
 	LOGIN_REQUEST,
 	LOGIN_RESPONSE,
 
-	REGISTER,
 	REGISTER_REQUEST,
 	REGISTER_RESPONSE,
 
 
 	//Lobby
-	LOBBYCREATION,
 	CREATE_ROOM_REQUEST,
 	CREATE_ROOM_RESPONSE,
 
@@ -27,8 +28,16 @@ enum PacketType
 	//Juego
 	ROOM_STATUS_UPDATE,
 	START_GAME,
+	TRANSFORM,
+	SHOOT,
+	SHOOT_REPLICATE,
+	PLAYER_HIT,
+	PLAYER_TAUNT,
+
+	// Legacy temporal: el gameplay actual de Conecta3 lo usa mientras migramos a shooter.
 	PIECEADDED,
 	NEXT_TURN,
+
 	ENDGAME,
 	RANKINGUPDATE,
 	RANKING_REQUEST,
@@ -37,12 +46,13 @@ enum PacketType
 	//Desconextion
 	DISCONNECT,
 	PLAYER_DISCONNECTED,
+	PING,
 
 	//Generico
 	ERROR_MESSAGE
 };
 
-inline sf::Packet& operator <<(sf::Packet& packet, PacketType& type)
+inline sf::Packet& operator <<(sf::Packet& packet, const PacketType& type)
 {
 	return packet << static_cast<short>(type);
 }

@@ -28,6 +28,7 @@ public:
     // --- Protocolo de sala ---
     void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
     void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
+    void SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort);
 
     void ReceiveData();
     void NetworkFetch();          // Alias de ReceiveData

@@ -1,5 +1,7 @@
 #include "NetworkManager.h"
 #include "DatabaseConnector.h"
+#include <algorithm>
+#include <chrono>
 #include <iostream>
 
 NetworkManager::NetworkManager()
@@ -159,6 +161,18 @@ void NetworkManager::HandleCreateRoomRequest(ConnectedClient& client, sf::Packet
     CreateRoomRequestData requestData;
     packet >> requestData;
 
+    if (requestData.roomId == "__queue_normal")
+    {
+        HandleMatchmakingRequest(client, requestData, false);
+        return;
+    }
+
+    if (requestData.roomId == "__queue_ranked")
+    {
+        HandleMatchmakingRequest(client, requestData, true);
+        return;
+    }
+
     client.username = requestData.username;
     client.gamePort = requestData.gamePort;
 
@@ -178,6 +192,29 @@ void NetworkManager::HandleCreateRoomRequest(ConnectedClient& client, sf::Packet
 
     PrintConnectedClients();
     m_roomManager.PrintRooms();
+}
+
+void NetworkManager::HandleMatchmakingRequest(ConnectedClient& client, const CreateRoomRequestData& requestData, bool ranked)
+{
+    client.username = requestData.username;
+    client.gamePort = requestData.gamePort;
+
+    std::vector<int>& queue = ranked ? m_rankedQueue : m_normalQueue;
+    const std::string queueName = ranked ? "ranked" : "normal";
+
+    RemoveClientFromMatchmakingQueues(client.playerId);
+
+    queue.push_back(client.playerId);
+    client.currentRoomId = "__queue_" + queueName;
+
+    SendCreateRoomResponse(client, true, client.currentRoomId, "Buscando partida " + queueName + ".");
+
+    std::cout << "[SERVER][Matchmaking] Player " << client.playerId
+        << " en cola " << queueName
+        << " | " << queue.size() << "/2"
+        << std::endl;
+
+    TryCreateMatchFromQueue(queue, queueName);
 }
 
 void NetworkManager::HandleJoinRoomRequest(ConnectedClient& client, sf::Packet& packet)
@@ -449,6 +486,66 @@ void NetworkManager::TryStartGame(const std::string& roomId)
     m_roomManager.DeleteRoom(roomId);
 }
 
+void NetworkManager::TryCreateMatchFromQueue(std::vector<int>& queue, const std::string& queueName)
+{
+    while (queue.size() >= 2)
+    {
+        const int firstPlayerId = queue.front();
+        queue.erase(queue.begin());
+        const int secondPlayerId = queue.front();
+        queue.erase(queue.begin());
+
+        ConnectedClient* firstClient = GetClientById(firstPlayerId);
+        ConnectedClient* secondClient = GetClientById(secondPlayerId);
+
+        if (firstClient == nullptr || secondClient == nullptr)
+        {
+            continue;
+        }
+
+        const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+        const std::string roomId = "match_" + queueName + "_" + std::to_string(firstPlayerId) + "_" + std::to_string(secondPlayerId) + "_" + std::to_string(now);
+
+        if (!m_roomManager.CreateRoom(roomId, firstPlayerId))
+        {
+            SendErrorMessage(*firstClient, "No se pudo crear la partida.");
+            SendErrorMessage(*secondClient, "No se pudo crear la partida.");
+            continue;
+        }
+
+        if (!m_roomManager.JoinRoom(roomId, secondPlayerId))
+        {
+            m_roomManager.DeleteRoom(roomId);
+            SendErrorMessage(*firstClient, "No se pudo crear la partida.");
+            SendErrorMessage(*secondClient, "No se pudo crear la partida.");
+            continue;
+        }
+
+        firstClient->currentRoomId = roomId;
+        secondClient->currentRoomId = roomId;
+
+        SendCreateRoomResponse(*firstClient, true, roomId, "Partida encontrada.");
+        SendJoinRoomResponse(*secondClient, true, roomId, "Partida encontrada.");
+        BroadcastRoomStatus(roomId);
+        TryStartGame(roomId);
+
+        std::cout << "[SERVER][Matchmaking] Match " << queueName
+            << " creado: " << roomId
+            << std::endl;
+    }
+}
+
+void NetworkManager::RemoveClientFromMatchmakingQueues(int playerId)
+{
+    auto removeFromQueue = [playerId](std::vector<int>& queue)
+    {
+        queue.erase(std::remove(queue.begin(), queue.end(), playerId), queue.end());
+    };
+
+    removeFromQueue(m_normalQueue);
+    removeFromQueue(m_rankedQueue);
+}
+
 ConnectedClient* NetworkManager::GetClientById(int playerId)
 {
     for (ConnectedClient& client : m_clients)
@@ -484,6 +581,7 @@ void NetworkManager::RemoveDisconnectedClient(int index)
 
     int playerId = m_clients[index].playerId;
 
+    RemoveClientFromMatchmakingQueues(playerId);
     m_roomManager.RemovePlayerFromRoom(playerId);
 
     if (index < static_cast<int>(m_sockets.size()))

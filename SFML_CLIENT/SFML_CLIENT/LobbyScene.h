@@ -24,6 +24,8 @@ private:
 
 	void BuildUI();
 	void AskJoinRoom();
+    void AskNormalMatchmaking();
+    void AskRankedMatchmaking();
 
 public:
     LobbyScene();

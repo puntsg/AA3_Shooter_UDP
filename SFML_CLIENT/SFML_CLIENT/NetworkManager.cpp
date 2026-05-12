@@ -231,6 +231,12 @@ void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::s
     }
 }
 
+void NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort)
+{
+    const std::string queueId = ranked ? "__queue_ranked" : "__queue_normal";
+    SendCreateRoomRequest(queueId, nickname, gamePort);
+}
+
 
 
 bool NetworkManager::IsConnected() const

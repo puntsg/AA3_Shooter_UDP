@@ -36,6 +36,7 @@ private:
 
     void HandleCreateRoomRequest(ConnectedClient& client, sf::Packet& packet);
     void HandleJoinRoomRequest(ConnectedClient& client, sf::Packet& packet);
+    void HandleMatchmakingRequest(ConnectedClient& client, const CreateRoomRequestData& requestData, bool ranked);
     void HandleEndGame(ConnectedClient& client, sf::Packet& packet);
     void HandleRankingRequest(ConnectedClient& client, sf::Packet& packet);
 
@@ -47,6 +48,8 @@ private:
 
     void BroadcastRoomStatus(const std::string& roomId);
     void TryStartGame(const std::string& roomId);
+    void TryCreateMatchFromQueue(std::vector<int>& queue, const std::string& queueName);
+    void RemoveClientFromMatchmakingQueues(int playerId);
 
     void HandleRankingUpdate(ConnectedClient& client, sf::Packet& packet);
     void ProcessRankingValidation(const std::string& roomId);
@@ -66,4 +69,6 @@ private:
     std::vector<ConnectedClient> m_clients;
     RoomManager m_roomManager;
     std::map<std::string, std::vector<RankingUpdateData>> pendingRankingUpdates;
+    std::vector<int> m_normalQueue;
+    std::vector<int> m_rankedQueue;
 };
