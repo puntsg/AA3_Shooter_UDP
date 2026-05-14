@@ -21,6 +21,6 @@ public:
 
     void Update(float dt) override;
 
-    bool grounded = true;
+    bool grounded = false;
     sf::Vector2f velocity;
 };

@@ -1,5 +1,5 @@
 #include "Player.h"
-
+#include "../../Constants.h"
 static void SetupAnimations(AnimatedRenderer* ar)
 {
 	ar->LoadTexture("Sprites/duck.png");
@@ -39,20 +39,22 @@ Player::Player(int _id, std::string _name, int _score, sf::Color _color, bool _i
 void Player::Update(float dt)
 {
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) {
-		velocity.x = -50;
+		velocity.x = -GameConstants::Player::SPEED;
 		animRenderer->flipped = true;
 	}
 	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) {
-		velocity.x = 50;
+		velocity.x = GameConstants::Player::SPEED;
 		animRenderer->flipped = false;
 	}
 	else
 		velocity.x = 0;
 
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) && grounded)
-		velocity.y = -20;
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) && grounded) {
+		grounded = false;
+		velocity.y = -GameConstants::Player::JUMP_FORCE;
+	}
 
-	velocity.y += 9.8f * dt;
+	velocity.y += 9.81f * dt * GameConstants::Player::GRAVITY_MULT;
 	
 	transform.position = sf::Vector2f(
 		transform.position.x + (velocity.x * dt),
