@@ -144,13 +144,21 @@ void NetworkManager::HandleLoginRequest(ConnectedClient& client, sf::Packet& pac
     LoginResponseData response;
     response.success = success;
     if (success) {
-        client.username = loginRequestData.username;
-        response.username = loginRequestData.username;
-        response.playerId = client.playerId;
-        response.message = "Login done";
+        if (std::find(connectedUsers.begin(), connectedUsers.end(), loginRequestData.username) != connectedUsers.end()) {
+            response.success = false;
+            response.message = "Login failed: user already logged in other client";
+            return;
+        }
+        else {
+            client.username = loginRequestData.username;
+            response.username = loginRequestData.username;
+            response.playerId = client.playerId;
+            connectedUsers.push_back(loginRequestData.username);
+            response.message = "Login done";
+        }
     }
     else
-        response.message = "Login failed";
+        response.message = "Login failed, incorrect username or password";
     SendLoginResponse(client, response);
 }
 
@@ -484,6 +492,11 @@ void NetworkManager::RemoveDisconnectedClient(int index)
 
     int playerId = m_clients[index].playerId;
 
+    if (!connectedUsers.size() > 0) {
+        auto it = std::find(connectedUsers.begin(),connectedUsers.end(), m_clients[index].username);
+        if (it != connectedUsers.end())
+            connectedUsers.erase(it);
+    }
     m_roomManager.RemovePlayerFromRoom(playerId);
 
     if (index < static_cast<int>(m_sockets.size()))
