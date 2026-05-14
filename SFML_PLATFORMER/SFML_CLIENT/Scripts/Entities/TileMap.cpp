@@ -25,12 +25,17 @@ void TileMap::initMap(const std::string& mapDatafilePath)
 		for (char c : line) {
 			Tile* tile = new Tile();
 			tile->GetTransform()->position = currentPos;
-
+			switch (c)
+			{
+			default:
+				break;
+			}
 			if (c == '#') {
 				tile->hasCollision = true;
 				SpriteRenderer* r = new SpriteRenderer(tile->GetTransform());
 				r->texture.loadFromFile("Sprites/Tiles/Dirt.png");
 				r->sprite.emplace(r->texture);
+				r->sprite->setPosition(tile->GetTransform()->position);
 				tile->SetRenderer(r);
 			}
 
