@@ -25,6 +25,7 @@ private:
 public:
 	sf::Texture texture;
 	std::optional<sf::Sprite> sprite;
+	bool flipped = false;
 	std::function<void()> onAnimationLooped;
 
 	AnimatedRenderer(Transform* t) : Renderer(t) {}

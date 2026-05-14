@@ -58,6 +58,7 @@ private:
 
     void PrintConnectedClients() const;
 
+
 private:
     sf::TcpListener m_listener;
     bool m_isRunning;
@@ -66,4 +67,5 @@ private:
     std::vector<ConnectedClient> m_clients;
     RoomManager m_roomManager;
     std::map<std::string, std::vector<RankingUpdateData>> pendingRankingUpdates;
+    std::vector<std::string> connectedUsers;
 };
