@@ -53,4 +53,7 @@ void AnimatedRenderer::Update(float dt)
 		texture,
 		sf::IntRect(frame.frameOffset, frame.frameSize)
 	);
+	if (flipped)
+		sprite->setScale({ -sprite->getScale().x,sprite->getScale().y });
+	sprite->setPosition(transform->position);
 }

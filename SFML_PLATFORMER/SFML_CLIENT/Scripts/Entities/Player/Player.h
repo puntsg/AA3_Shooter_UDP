@@ -20,4 +20,7 @@ public:
     Player(int _id, std::string _name, int _score, sf::Color _color, bool _isLocal);
 
     void Update(float dt) override;
+
+    bool grounded = true;
+    sf::Vector2f velocity;
 };

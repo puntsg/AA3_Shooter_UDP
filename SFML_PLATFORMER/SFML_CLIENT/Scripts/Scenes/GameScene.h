@@ -3,12 +3,14 @@
 #include <iostream>
 #include <vector>
 #include "..//Entities/Player/Player.h"
+#include "../Entities/TileMap.h"
 #include <SFML/Network.hpp>
 
 class GameScene : public Scene
 {
 private:
     Player* p; 
+    TileMap* t;
 public:
     GameScene() = default;
 
