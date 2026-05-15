@@ -136,6 +136,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Scripts\Entities\Bullet.cpp" />
     <ClCompile Include="Scripts\Entities\AnimatedRenderer.cpp" />
     <ClCompile Include="Scripts\Entities\TileMap.cpp" />
     <ClCompile Include="Scripts\Entities\UI\Button.cpp" />
@@ -150,6 +151,7 @@
     <ClCompile Include="Scripts\Entities\SpriteRenderer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Scripts\Entities\Bullet.h" />
     <ClInclude Include="Scripts\Entities\AnimatedRenderer.h" />
     <ClInclude Include="Scripts\Entities\TileMap.h" />
     <ClInclude Include="Scripts\Entities\UI\Button.h" />
@@ -168,6 +170,7 @@
     <ClInclude Include="Scripts\Entities\SpriteRenderer.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="Sprites\Bullet.png" />
     <Image Include="Sprites\duck.png" />
     <Image Include="Sprites\Tiles\Dirt.png" />
   </ItemGroup>

@@ -51,6 +51,9 @@
     <ClCompile Include="Scripts\Entities\SpriteRenderer.cpp">
       <Filter>Archivos de origen</Filter>
     </ClCompile>
+    <ClCompile Include="Scripts\Entities\Bullet.cpp">
+      <Filter>Archivos de origen</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Scripts\Entities\UI\Button.h">
@@ -101,12 +104,18 @@
     <ClInclude Include="Scripts\Entities\SpriteRenderer.h">
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
+    <ClInclude Include="Scripts\Entities\Bullet.h">
+      <Filter>Archivos de encabezado</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="Sprites\duck.png">
       <Filter>Archivos de recursos</Filter>
     </Image>
     <Image Include="Sprites\Tiles\Dirt.png">
+      <Filter>Archivos de recursos</Filter>
+    </Image>
+    <Image Include="Sprites\Bullet.png">
       <Filter>Archivos de recursos</Filter>
     </Image>
   </ItemGroup>

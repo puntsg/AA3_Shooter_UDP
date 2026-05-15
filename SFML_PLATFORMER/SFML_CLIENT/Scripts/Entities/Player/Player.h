@@ -3,6 +3,7 @@
 #include <SFML/Graphics.hpp>
 #include "../../Scenes/SceneManager.h"
 #include "../AnimatedRenderer.h"
+#include "../Bullet.h"
 
 class Player : public Entity
 {
@@ -21,6 +22,10 @@ public:
 
     void Update(float dt) override;
 
-    bool grounded = true;
+    bool grounded = false;
     sf::Vector2f velocity;
+    Bullet* pendingBullet = nullptr;
+    float fireRate = 0.3f;
+private:
+    float fireCooldown = 0.f;
 };
