@@ -55,10 +55,18 @@ void Player::Update(float dt)
 	}
 
 	velocity.y += 9.81f * dt * GameConstants::Player::GRAVITY_MULT;
-	
+
 	transform.position = sf::Vector2f(
 		transform.position.x + (velocity.x * dt),
 		transform.position.y + (velocity.y * dt)
 	);
+
+	fireCooldown -= dt;
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space) && fireCooldown <= 0.f) {
+		sf::Vector2f dir = animRenderer->flipped ? sf::Vector2f(-1.f, 0.f) : sf::Vector2f(1.f, 0.f);
+		pendingBullet = new Bullet(GetTransform()->position, dir);
+		fireCooldown = fireRate;
+	}
+
 	animRenderer->Update(dt);
 }
