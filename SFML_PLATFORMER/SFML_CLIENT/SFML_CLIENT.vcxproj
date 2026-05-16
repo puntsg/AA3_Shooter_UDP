@@ -141,6 +141,9 @@
     <ClCompile Include="Scripts\Entities\TileMap.cpp" />
     <ClCompile Include="Scripts\Entities\UI\Button.cpp" />
     <ClCompile Include="Scripts\Entities\Entity.cpp" />
+    <ClCompile Include="Scripts\Network\ClientState.cpp" />
+    <ClCompile Include="Scripts\Network\NetworkManager.cpp" />
+    <ClCompile Include="Scripts\Network\ProtocolData.cpp" />
     <ClCompile Include="Scripts\Scenes\GameScene.cpp" />
     <ClCompile Include="Scripts\Entities\Player\HealthBehaviour.cpp" />
     <ClCompile Include="Scripts\Entities\UI\InputField.cpp" />
@@ -157,6 +160,10 @@
     <ClInclude Include="Scripts\Entities\UI\Button.h" />
     <ClInclude Include="Scripts\Constants.h" />
     <ClInclude Include="Scripts\Entities\Entity.h" />
+    <ClInclude Include="Scripts\Network\ClientState.h" />
+    <ClInclude Include="Scripts\Network\NetworkManager.h" />
+    <ClInclude Include="Scripts\Network\PacketTypes.h" />
+    <ClInclude Include="Scripts\Network\ProtocolData.h" />
     <ClInclude Include="Scripts\Scenes\GameScene.h" />
     <ClInclude Include="Scripts\Entities\Player\HealthBehaviour.h" />
     <ClInclude Include="Scripts\Entities\UI\InputField.h" />

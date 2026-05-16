@@ -5,6 +5,7 @@
 #include "../Scripts/Scenes/SceneManager.h"
 #include "../Scripts/Scenes/GameScene.h"
 #include "../Scripts/Scenes/TitleScene.h"
+#include "Network/NetworkManager.h"
 
 int main()
 {
@@ -16,6 +17,8 @@ int main()
     SM.AddScene("GameScene", gameScene);
     SM.InitFirstScene("TitleScene");
 
+    if (!NM.ConnectToServer())
+        return-1;
     sf::Clock dtClock;
     while (SM.window.isOpen())
     {
