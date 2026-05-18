@@ -119,6 +119,11 @@ namespace Config
 }
 
 namespace GameConstants{
+    namespace Player {
+        const float GRAVITY_MULT = 10;
+        const float JUMP_FORCE = 115;
+        const float SPEED = 200;
+    }
     namespace Health {
         const short INITIAL_LIFES = 3;
         const short INITIAL_HEALTH = 3;

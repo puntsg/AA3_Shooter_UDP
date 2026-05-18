@@ -116,6 +116,9 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
     case PacketType::ENDGAME:
         HandleEndGame(client, packet);
         break;
+    case PacketType::PLAYER_MOVES:
+        std::cout << "player send movement packet" << std::endl;
+        break;
     default:
         std::cout << "[SERVER] Paquete no gestionado recibido de playerId "
             << client.playerId
