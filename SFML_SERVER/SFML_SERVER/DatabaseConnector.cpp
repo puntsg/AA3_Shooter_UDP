@@ -134,25 +134,37 @@ void DatabaseConnector::UpdateScore(Result r)
 	}
 }
 
-std::vector<RankingData> DatabaseConnector::GetRanking(std::string playerName)
+std::vector<RankingData> DatabaseConnector::GetRanking(std::string playerName, bool& success)
 {
 	std::vector<RankingData> rankingDataEntries;
+	success = false;
 
-	sql::PreparedStatement* pstmt = con->prepareStatement("CALL GetRanking(?)");
-	pstmt->setString(1, playerName);
-	sql::ResultSet* res = pstmt->executeQuery();
-	while (res->next()) {
-		RankingData rd;
-		rd.playerName = res->getString("Username");
-		rd.score = res->getInt("Score");
-		rankingDataEntries.push_back(rd);
+	if (con == nullptr) {
+		std::cout << "GetRanking error: database not connected" << std::endl;
+		return rankingDataEntries;
 	}
-	delete res;
-	while (pstmt->getMoreResults()) {
-		sql::ResultSet* extraRes = pstmt->getResultSet();
-		if (extraRes) delete extraRes;
+
+	try {
+		sql::PreparedStatement* pstmt = con->prepareStatement("CALL GetRanking(?)");
+		pstmt->setString(1, playerName);
+		sql::ResultSet* res = pstmt->executeQuery();
+		while (res->next()) {
+			RankingData rd;
+			rd.playerName = res->getString("Username");
+			rd.score = res->getInt("Score");
+			rankingDataEntries.push_back(rd);
+		}
+		delete res;
+		while (pstmt->getMoreResults()) {
+			sql::ResultSet* extraRes = pstmt->getResultSet();
+			if (extraRes) delete extraRes;
+		}
+		delete pstmt;
+		success = true;
 	}
-	delete pstmt;
+	catch (sql::SQLException& e) {
+		std::cout << "GetRanking error: " << e.what() << std::endl;
+	}
 
 	return rankingDataEntries;
 }

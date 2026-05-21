@@ -17,9 +17,18 @@ void ClientState::ResetAuthState()
     authMessageIsError = false;
 }
 
+void ClientState::ResetRankingState()
+{
+    ranking.clear();
+    rankingLoading = false;
+    rankingReceived = false;
+    rankingMessageIsError = false;
+    rankingMessage.clear();
+}
+
 void ClientState::ResetAll()
 {
     ResetAuthState();
     ResetRoomState();
-    ranking.clear();
+    ResetRankingState();
 }

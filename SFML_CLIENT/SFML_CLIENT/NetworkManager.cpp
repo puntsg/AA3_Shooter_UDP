@@ -360,15 +360,33 @@ bool NetworkManager::SendRegisterRequest(const std::string& username, const std:
     return true;
 }
 
-void NetworkManager::SendRankingRequest(const std::string& username)
+bool NetworkManager::SendRankingRequest(const std::string& username)
 {
+    if (!m_isConnected)
+    {
+        m_clientState.rankingLoading = false;
+        m_clientState.rankingReceived = true;
+        m_clientState.rankingMessage = "No hay conexion con el servidor.";
+        m_clientState.rankingMessageIsError = true;
+        return false;
+    }
+
     RankingRequestData requestData;
     requestData.username = username;
 
     sf::Packet packet;
     packet << static_cast<short>(PacketType::RANKING_REQUEST);
     packet << requestData;
-    m_socket.send(packet);
+    if (m_socket.send(packet) != sf::Socket::Status::Done)
+    {
+        m_clientState.rankingLoading = false;
+        m_clientState.rankingReceived = true;
+        m_clientState.rankingMessage = "Error pidiendo ranking.";
+        m_clientState.rankingMessageIsError = true;
+        return false;
+    }
+
+    return true;
 }
 
 void NetworkManager::NotifyPlayerWin(const std::string& username)
@@ -517,5 +535,9 @@ void NetworkManager::HandleRankingResponse(sf::Packet& packet)
     RankingResponseData responseData;
     packet >> responseData;
     m_clientState.ranking = responseData.entries;
+    m_clientState.rankingLoading = false;
+    m_clientState.rankingReceived = true;
+    m_clientState.rankingMessage = responseData.message;
+    m_clientState.rankingMessageIsError = !responseData.success;
     std::cout << "[CLIENT] Ranking recibido: " << responseData.entries.size() << " entradas" << std::endl;
 }
