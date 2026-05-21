@@ -304,28 +304,60 @@ void NetworkManager::SendToServer(sf::Packet& packet)
     m_socket.send(packet);
 }
 
-void NetworkManager::SendLoginRequest(const std::string& username, const std::string& password)
+bool NetworkManager::SendLoginRequest(const std::string& username, const std::string& password)
 {
+    if (!m_isConnected)
+    {
+        m_clientState.authMessage = "No hay conexion con el servidor.";
+        m_clientState.authMessageIsError = true;
+        std::cerr << "[CLIENT] No se puede enviar LOGIN_REQUEST: no hay conexion." << std::endl;
+        return false;
+    }
+
     LoginRequestData loginRequestData;
     loginRequestData.username = username;
     loginRequestData.password = password;
-    //std::cout << "SendingLogin";
+
     sf::Packet packet;
     packet << static_cast<short>(PacketType::LOGIN_REQUEST);
     packet << loginRequestData;
-    m_socket.send(packet);
+
+    if (m_socket.send(packet) != sf::Socket::Status::Done)
+    {
+        m_clientState.authMessage = "Error enviando login.";
+        m_clientState.authMessageIsError = true;
+        return false;
+    }
+
+    return true;
 }
 
-void NetworkManager::SendRegisterRequest(const std::string& username, const std::string& password)
+bool NetworkManager::SendRegisterRequest(const std::string& username, const std::string& password)
 {
+    if (!m_isConnected)
+    {
+        m_clientState.authMessage = "No hay conexion con el servidor.";
+        m_clientState.authMessageIsError = true;
+        std::cerr << "[CLIENT] No se puede enviar REGISTER_REQUEST: no hay conexion." << std::endl;
+        return false;
+    }
+
     RegisterRequestData registerRequestData;
     registerRequestData.username = username;
     registerRequestData.password = password;
-    //std::cout << "SendingRegister";
+
     sf::Packet packet;
     packet << static_cast<short>(PacketType::REGISTER_REQUEST);
     packet << registerRequestData;
-    m_socket.send(packet);
+
+    if (m_socket.send(packet) != sf::Socket::Status::Done)
+    {
+        m_clientState.authMessage = "Error enviando registro.";
+        m_clientState.authMessageIsError = true;
+        return false;
+    }
+
+    return true;
 }
 
 void NetworkManager::SendRankingRequest(const std::string& username)
@@ -450,6 +482,9 @@ void NetworkManager::HandleLoginResponse(sf::Packet& packet)
 {
     LoginResponseData loginResponseData;
     packet >> loginResponseData;
+    m_clientState.authMessage = loginResponseData.message;
+    m_clientState.authMessageIsError = !loginResponseData.success;
+
     if (loginResponseData.success)
     {
         m_clientState.playerId = loginResponseData.playerId;
@@ -473,6 +508,8 @@ void NetworkManager::HandleRegisterResponse(sf::Packet& packet)
 {
     RegisterResponseData registerResponseData;
     packet >> registerResponseData;
+    m_clientState.authMessage = registerResponseData.message;
+    m_clientState.authMessageIsError = !registerResponseData.success;
 }
 
 void NetworkManager::HandleRankingResponse(sf::Packet& packet)

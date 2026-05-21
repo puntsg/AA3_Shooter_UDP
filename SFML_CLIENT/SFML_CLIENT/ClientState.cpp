@@ -9,10 +9,17 @@ void ClientState::ResetRoomState()
     roomPlayers.clear();
 }
 
-void ClientState::ResetAll()
+void ClientState::ResetAuthState()
 {
     playerId = -1;
     nickname.clear();
+    authMessage.clear();
+    authMessageIsError = false;
+}
+
+void ClientState::ResetAll()
+{
+    ResetAuthState();
     ResetRoomState();
     ranking.clear();
 }

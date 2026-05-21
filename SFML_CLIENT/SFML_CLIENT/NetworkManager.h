@@ -46,8 +46,8 @@ public:
     std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections();
     void ClearConnections();
     void SendToServer(sf::Packet& packet);
-    void SendLoginRequest(const std::string& username, const std::string& password);
-    void SendRegisterRequest(const std::string& username, const std::string& password);
+    bool SendLoginRequest(const std::string& username, const std::string& password);
+    bool SendRegisterRequest(const std::string& username, const std::string& password);
     void SendRankingRequest(const std::string& username);
     void NotifyPlayerWin(const std::string& username);
 

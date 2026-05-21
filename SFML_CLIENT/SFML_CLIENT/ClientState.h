@@ -10,6 +10,8 @@ struct ClientState
     int playerId = -1;
     std::string nickname = "";
     std::string savedPassword = "";
+    std::string authMessage = "";
+    bool authMessageIsError = false;
     unsigned short myGamePort = 0;
 
     // Estado de la sala
@@ -29,6 +31,8 @@ struct ClientState
     std::vector<RankingData> ranking;
 
     void ResetRoomState();
+
+    void ResetAuthState();
 
     void ResetAll();
 

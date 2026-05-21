@@ -133,11 +133,10 @@ void NetworkManager::HandleRegisterRequest(ConnectedClient& client, sf::Packet& 
 {
     RegisterRequestData registerRequestData;
     packet >> registerRequestData;
-    DC.AddPlayer(registerRequestData);
 
     RegisterResponseData response;
-    response.success = true;
-    response.message = "Register succeed";
+    response.success = DC.AddPlayer(registerRequestData);
+    response.message = response.success ? "Registro completado." : "No se pudo registrar. El usuario puede existir.";
     SendRegisterResponse(client, response);
 }
 
@@ -145,25 +144,29 @@ void NetworkManager::HandleLoginRequest(ConnectedClient& client, sf::Packet& pac
 {
     LoginRequestData loginRequestData;
     packet >> loginRequestData;
+
+    bool alreadyConnected = std::find(
+        connectedUsers.begin(),
+        connectedUsers.end(),
+        loginRequestData.username) != connectedUsers.end();
     bool success = DC.LoginPlayer(loginRequestData);
     LoginResponseData response;
-    response.success = success;
-    if (success) {
-        if (std::find(connectedUsers.begin(), connectedUsers.end(), loginRequestData.username) != connectedUsers.end()) {
-            response.success = false;
-            response.message = "Login failed: user already logged in other client";
-            return;
-        }
-        else {
-            client.username = loginRequestData.username;
-            response.username = loginRequestData.username;
-            response.playerId = client.playerId;
-            connectedUsers.push_back(loginRequestData.username);
-            response.message = "Login done";
-        }
+    response.success = !alreadyConnected && success;
+    if (alreadyConnected)
+    {
+        response.message = "Usuario ya conectado.";
+    }
+    else if (response.success) {
+        client.username = loginRequestData.username;
+        response.username = loginRequestData.username;
+        response.playerId = client.playerId;
+        connectedUsers.push_back(loginRequestData.username);
+        response.message = "Login correcto.";
     }
     else
-        response.message = "Login failed, incorrect username or password";
+    {
+        response.message = "Login incorrecto.";
+    }
     SendLoginResponse(client, response);
 }
 
@@ -592,8 +595,8 @@ void NetworkManager::RemoveDisconnectedClient(int index)
 
     int playerId = m_clients[index].playerId;
 
-    if (!connectedUsers.size() > 0) {
-        auto it = std::find(connectedUsers.begin(),connectedUsers.end(), m_clients[index].username);
+    if (!connectedUsers.empty()) {
+        auto it = std::find(connectedUsers.begin(), connectedUsers.end(), m_clients[index].username);
         if (it != connectedUsers.end())
             connectedUsers.erase(it);
     }
