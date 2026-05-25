@@ -19,6 +19,8 @@ struct RankingRequestData
 
 struct RankingResponseData
 {
+    bool success = false;
+    std::string message;
     std::vector<RankingData> entries;
 };
 

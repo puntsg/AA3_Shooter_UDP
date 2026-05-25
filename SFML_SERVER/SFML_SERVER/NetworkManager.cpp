@@ -298,9 +298,17 @@ void NetworkManager::HandleRankingRequest(ConnectedClient& client, sf::Packet& p
     RankingRequestData rankingRequestData;
     packet >> rankingRequestData;
 
-    std::vector<RankingData> dbRanking = DC.GetRanking(rankingRequestData.username);
+    bool rankingOk = false;
+    std::vector<RankingData> dbRanking = DC.GetRanking(rankingRequestData.username, rankingOk);
 
     RankingResponseData response;
+    response.success = rankingOk;
+    response.message = rankingOk ? "Ranking cargado." : "No se pudo cargar el ranking.";
+    if (rankingOk && dbRanking.empty())
+    {
+        response.message = "No hay datos de ranking.";
+    }
+
     for (int i = 0; i < dbRanking.size(); i++)
         response.entries.push_back(dbRanking[i]);
 

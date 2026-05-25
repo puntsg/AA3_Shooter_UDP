@@ -29,10 +29,16 @@ struct ClientState
     // Jugadores actuales de la sala
     std::vector<LobbyPlayerInfo> roomPlayers;
     std::vector<RankingData> ranking;
+    bool rankingLoading = false;
+    bool rankingReceived = false;
+    bool rankingMessageIsError = false;
+    std::string rankingMessage = "";
 
     void ResetRoomState();
 
     void ResetAuthState();
+
+    void ResetRankingState();
 
     void ResetAll();
 
