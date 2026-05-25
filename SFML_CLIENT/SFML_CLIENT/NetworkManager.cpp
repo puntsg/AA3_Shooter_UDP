@@ -231,12 +231,63 @@ void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::s
     }
 }
 
-void NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort)
+bool NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort)
 {
+    if (!m_isConnected)
+    {
+        std::cerr << "[CLIENT] No se puede enviar MATCHMAKING_REQUEST: no hay conexion." << std::endl;
+        return false;
+    }
+
     const std::string queueId = ranked ? "__queue_ranked" : "__queue_normal";
-    SendCreateRoomRequest(queueId, nickname, gamePort);
+    sf::Packet packet;
+
+    CreateRoomRequestData requestData;
+    requestData.roomId = queueId;
+    requestData.username = nickname;
+    requestData.gamePort = gamePort;
+
+    packet << static_cast<short>(PacketType::CREATE_ROOM_REQUEST);
+    packet << requestData;
+
+    if (m_socket.send(packet) != sf::Socket::Status::Done)
+    {
+        std::cerr << "[CLIENT] Error al enviar MATCHMAKING_REQUEST." << std::endl;
+        return false;
+    }
+
+    m_clientState.isSearchingMatch = true;
+    m_clientState.searchingRanked = ranked;
+    m_clientState.isWaitingInRoom = false;
+    m_clientState.currentRoomId = queueId;
+    m_clientState.roomPlayers.clear();
+
+    return true;
 }
 
+bool NetworkManager::SendCancelMatchmakingRequest()
+{
+    if (!m_isConnected)
+    {
+        return false;
+    }
+
+    sf::Packet packet;
+    packet << static_cast<short>(PacketType::DISCONNECT);
+
+    if (m_socket.send(packet) != sf::Socket::Status::Done)
+    {
+        return false;
+    }
+
+    m_clientState.isSearchingMatch = false;
+    m_clientState.searchingRanked = false;
+    m_clientState.isWaitingInRoom = false;
+    m_clientState.currentRoomId.clear();
+    m_clientState.roomPlayers.clear();
+
+    return true;
+}
 
 
 bool NetworkManager::IsConnected() const
@@ -412,6 +463,14 @@ void NetworkManager::HandleCreateRoomResponse(sf::Packet& packet)
         m_clientState.isWaitingInRoom = true;
         m_clientState.hasGameStarted = false;
     }
+    else
+    {
+        m_clientState.isSearchingMatch = false;
+        m_clientState.searchingRanked = false;
+        m_clientState.isWaitingInRoom = false;
+        m_clientState.currentRoomId.clear();
+        m_clientState.roomPlayers.clear();
+    }
 }
 
 void NetworkManager::HandleJoinRoomResponse(sf::Packet& packet)
@@ -429,6 +488,14 @@ void NetworkManager::HandleJoinRoomResponse(sf::Packet& packet)
         m_clientState.isHost = false;
         m_clientState.isWaitingInRoom = true;
         m_clientState.hasGameStarted = false;
+    }
+    else
+    {
+        m_clientState.isSearchingMatch = false;
+        m_clientState.searchingRanked = false;
+        m_clientState.isWaitingInRoom = false;
+        m_clientState.currentRoomId.clear();
+        m_clientState.roomPlayers.clear();
     }
 }
 
@@ -448,6 +515,7 @@ void NetworkManager::HandleRoomStatusUpdate(sf::Packet& packet)
     m_clientState.currentRoomId = roomData.roomId;
     m_clientState.roomPlayers = roomData.players;
     m_clientState.isWaitingInRoom = true;
+    m_clientState.isSearchingMatch = roomData.roomId.rfind("__queue_", 0) == 0;
 
     for (const LobbyPlayerInfo& player : roomData.players)
     {
@@ -474,6 +542,8 @@ void NetworkManager::HandleStartGame(sf::Packet& packet)
     m_clientState.roomPlayers = startData.players;
     m_clientState.hasGameStarted = true;
     m_clientState.isWaitingInRoom = false;
+    m_clientState.isSearchingMatch = false;
+    m_clientState.searchingRanked = false;
 
     for (const LobbyPlayerInfo& player : startData.players)
     {
