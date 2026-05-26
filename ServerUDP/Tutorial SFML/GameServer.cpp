@@ -3,7 +3,7 @@
 #include <chrono>
 
 GameServer::GameServer()
-    : pool(MAX_THREADS)
+    : pool(static_cast<int>(std::thread::hardware_concurrency()))
     , running(false)
 {
 }
@@ -31,13 +31,13 @@ bool GameServer::Start()
     running = true;
 
     std::cout << "TCP ON: " << TCP_LISTEN_PORT
-              << " UDP ON: " << UDP_GAME_PORT
-              << " Threads Num: " << pool.Size()
-              << std::endl;
+        << " UDP ON: " << UDP_GAME_PORT
+        << " Threads Num: " << pool.Size()
+        << std::endl;
 
     tcpThread = std::thread(&GameServer::TcpListenerLoop, this);
-    udpThread = std::thread(&GameServer::UdpReceiveLoop,  this);
-    updateThread = std::thread(&GameServer::UpdateLoop,   this);
+    udpThread = std::thread(&GameServer::UdpReceiveLoop, this);
+    updateThread = std::thread(&GameServer::UpdateLoop, this);
 
     return true;
 }
@@ -96,9 +96,9 @@ void GameServer::UdpReceiveLoop()
 
             // metemos el packet a procesar
             pool.Enqueue([this, ip, senderPort, packet]() mutable
-            {
-                RouteUdpPacket(ip, senderPort, packet);
-            });
+                {
+                    RouteUdpPacket(ip, senderPort, packet);
+                });
         }
     }
 }
@@ -144,7 +144,7 @@ void GameServer::HandleSessionStart(sf::Packet& packet)
     }
 
     std::cout << "Room created: " << sessionData.roomId
-              << " Total rooms: " << sessions.size() << std::endl;
+        << " Total rooms: " << sessions.size() << std::endl;
 }
 
 void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short senderPort, sf::Packet& packet)
