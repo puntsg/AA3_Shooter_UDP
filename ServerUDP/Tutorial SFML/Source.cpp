@@ -1,3 +1,4 @@
+#include "GameServer.h"
 #include <SFML/Network.hpp>
 #include <iostream>
 #include <string>
@@ -6,6 +7,24 @@
 //SERVER
 void main()
 {
+	std::cout << "servidor de partidas" << std::endl;
+
+	GameServer server;
+
+	if (server.Start())
+	{
+		std::cout << " Enter cerrar ." << std::endl;
+		std::cin.get();
+	}
+	else
+	{
+		std::cerr << "Fallo iniciar el servidor." << std::endl;
+		std::cin.get();
+	}
+
+	server.Stop();
+
+
 	sf::UdpSocket socket;
 
 	if (socket.bind(BIND_PORT) == sf::Socket::Status::Done)

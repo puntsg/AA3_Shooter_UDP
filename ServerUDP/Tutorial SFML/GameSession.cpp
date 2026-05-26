@@ -1,0 +1,252 @@
+#include "GameSession.h"
+#include <iostream>
+#include <cmath>
+
+GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket)
+    : roomId(roomId)
+    , socket(socket)
+    , finished(false)
+    , bothReady(false)
+{
+    playerIds[0] = p1Info.playerId;
+    playerIds[1] = p2Info.playerId;
+
+    //Optional para que el programa no pete si esta mal pasada la ip
+    std::optional<sf::IpAddress> resolvedP1 = sf::IpAddress::resolve(p1Info.ip);
+    states[0].ip = resolvedP1.has_value() ? resolvedP1.value() : sf::IpAddress::Any;
+    states[0].port = p1Info.gamePort;
+    states[0].position = sf::Vector2f(RESPAWN_X - 100.f, RESPAWN_Y);
+
+    std::optional<sf::IpAddress> resolvedP2 = sf::IpAddress::resolve(p2Info.ip);
+    states[1].ip = resolvedP2.has_value() ? resolvedP2.value() : sf::IpAddress::Any;
+    states[1].port = p2Info.gamePort;
+    states[1].position = sf::Vector2f(RESPAWN_X + 100.f, RESPAWN_Y);
+
+    std::cout << "Room " << roomId << " ready. P1: " << p1Info.ip << ":" << p1Info.gamePort 
+              << " P2: " << p2Info.ip << ":" << p2Info.gamePort << std::endl;
+}
+
+void GameSession::ProcessMovePacket(int playerId, sf::Packet& packet)
+{
+    TransformData moveData;
+    packet >> moveData;
+
+    PlayerState& state = GetState(playerId);
+
+    sf::Vector2f newPos(moveData.x, moveData.y);
+    
+    float dx = std::abs(newPos.x - state.position.x);
+    float dy = std::abs(newPos.y - state.position.y);
+
+    if (dx > CHEAT_THRESHOLD || dy > CHEAT_THRESHOLD)
+    {
+        state.cheatingStrikes++;
+        std::cout << "Cheater alert in " << roomId << " p" << playerId << " alerts given: " << state.cheatingStrikes << std::endl;
+
+        TransformData reconcileData;
+        reconcileData.packetId = state.lastValidPacketId;
+        reconcileData.dbId = playerIds[(playerIds[0] == playerId) ? 0 : 1];
+        reconcileData.localPlayerId = (playerIds[0] == playerId) ? 0 : 1;
+        reconcileData.x = state.position.x;
+        reconcileData.y = state.position.y;
+        reconcileData.flipped = state.flipped;
+
+        sf::Packet reconcilePacket;
+        reconcilePacket << PacketType::TRANSFORM << reconcileData;
+        SendToPlayer(playerId, reconcilePacket);
+
+        if (state.cheatingStrikes >= MAX_STRIKES)
+        {
+            int winnerIndex = (playerIds[0] == playerId) ? 1 : 0;
+            FinishGame(playerIds[winnerIndex], true);
+        }
+        return;
+    }
+
+    state.position = newPos;
+    state.flipped = moveData.flipped;
+    state.lastValidPacketId = moveData.packetId;
+    state.lastPacketClock.restart();
+}
+
+void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
+{
+    PlayerState& shooter = GetState(playerId);
+
+    ShootReplicateData replicateData;
+    replicateData.position = shooter.position;
+    replicateData.flipped = shooter.flipped;
+
+    sf::Packet replicatePacket;
+    replicatePacket << PacketType::SHOOT_REPLICATE << replicateData;
+    SendToOther(playerId, replicatePacket);
+}
+
+void GameSession::ProcessTauntPacket(int playerId)
+{
+    sf::Packet tauntPacket;
+    tauntPacket << PacketType::PLAYER_TAUNT << playerId;
+    SendToOther(playerId, tauntPacket);
+}
+
+void GameSession::ProcessReadyPacket(int playerId)
+{
+    PlayerState& state = GetState(playerId);
+    state.ready = true;
+
+    if (states[0].ready && states[1].ready)
+    {
+        bothReady = true;
+        std::cout << "Both ready in " << roomId << std::endl;
+    }
+}
+
+void GameSession::Update(float dt)
+{
+    if (finished || !bothReady)
+        return;
+
+    PredictPositions(dt);
+
+    
+    //60fps = 0.016
+    if (broadcastClock.getElapsedTime().asSeconds() >= 0.016f)
+    {
+        BroadcastGameState();
+        broadcastClock.restart();
+    }
+}
+
+bool GameSession::IsFinished() const
+{
+    return finished;
+}
+
+std::string GameSession::GetRoomId() const
+{
+    return roomId;
+}
+
+bool GameSession::BelongsToSession(const sf::IpAddress& ip, unsigned short port) const
+{
+    return (states[0].ip == ip && states[0].port == port) ||
+           (states[1].ip == ip && states[1].port == port);
+}
+
+int GameSession::GetPlayerIdByAddress(const sf::IpAddress& ip, unsigned short port) const
+{
+    if (states[0].ip == ip && states[0].port == port)
+        return playerIds[0];
+    if (states[1].ip == ip && states[1].port == port)
+        return playerIds[1];
+    return -1;
+}
+
+void GameSession::BroadcastGameState()
+{
+    for (int i = 0; i < 2; i++)
+    {
+        TransformData tData;
+        tData.packetId = states[i].lastValidPacketId;
+        tData.dbId = playerIds[i];
+        tData.localPlayerId = i;
+        tData.x = states[i].position.x;
+        tData.y = states[i].position.y;
+        tData.flipped = states[i].flipped;
+
+        sf::Packet packet;
+        packet << PacketType::TRANSFORM << tData;
+
+        socket.send(packet, states[0].ip, states[0].port);
+        socket.send(packet, states[1].ip, states[1].port);
+    }
+}
+
+void GameSession::SendToPlayer(int playerId, sf::Packet& packet)
+{
+    int idx = (playerIds[0] == playerId) ? 0 : 1;
+    socket.send(packet, states[idx].ip, states[idx].port);
+}
+
+void GameSession::SendToOther(int playerId, sf::Packet& packet)
+{
+    int idx = (playerIds[0] == playerId) ? 1 : 0;
+    socket.send(packet, states[idx].ip, states[idx].port);
+}
+
+void GameSession::HandleHit(int shooterPlayerId)
+{
+    int rivalIndex = (playerIds[0] == shooterPlayerId) ? 1 : 0;
+    PlayerState& rival = states[rivalIndex];
+
+    rival.health--;
+
+    if (rival.health <= 0)
+    {
+        rival.lifes--;
+        if (rival.lifes <= 0)
+        {
+            FinishGame(shooterPlayerId, false);
+            return;
+        }
+        RespawnPlayer(playerIds[rivalIndex]);
+    }
+
+    PlayerHitData hitData;
+    hitData.targetPlayerId = playerIds[rivalIndex];
+    hitData.newHealth = rival.health;
+    hitData.newLifes = rival.lifes;
+    hitData.respawnPosition = rival.position;
+
+    sf::Packet hitPacket;
+    hitPacket << PacketType::PLAYER_HIT << hitData;
+
+    socket.send(hitPacket, states[0].ip, states[0].port);
+    socket.send(hitPacket, states[1].ip, states[1].port);
+}
+
+void GameSession::RespawnPlayer(int playerId)
+{
+    PlayerState& state = GetState(playerId);
+    state.health = MAX_HEALTH;
+    state.position = sf::Vector2f(RESPAWN_X, RESPAWN_Y);
+    state.velocity = sf::Vector2f(0.f, 0.f);
+}
+
+void GameSession::PredictPositions(float dt)
+{
+    for (int i = 0; i < 2; i++)
+    {
+        PlayerState& state = states[i];
+        float timeSincePacket = state.lastPacketClock.getElapsedTime().asSeconds();
+
+        if (timeSincePacket > PREDICT_TIMEOUT)
+            state.position += state.velocity * dt;
+    }
+}
+
+void GameSession::FinishGame(int winnerPlayerId, bool cheating)
+{
+    finished = true;
+
+    int loserIndex = (playerIds[0] == winnerPlayerId) ? 1 : 0;
+    int loserPlayerId = playerIds[loserIndex];
+
+    EndgameData endData;
+    endData.winnerPlayerId = winnerPlayerId;
+    endData.loserPlayerId = loserPlayerId;
+    endData.cheating = cheating;
+
+    sf::Packet endPacket;
+    endPacket << PacketType::ENDGAME << endData;
+
+    socket.send(endPacket, states[0].ip, states[0].port);
+    socket.send(endPacket, states[1].ip, states[1].port);
+
+    std::cout << "Room " << roomId << " finishe. Winner: " << winnerPlayerId << std::endl;
+}
+
+PlayerState& GameSession::GetState(int playerId)
+{
+    return (playerIds[0] == playerId) ? states[0] : states[1];
+}
