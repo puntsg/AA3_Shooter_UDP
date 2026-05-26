@@ -18,6 +18,8 @@ struct ClientState
     std::string currentRoomId = "";
     bool isHost = false;
     bool isWaitingInRoom = false;
+    bool isSearchingMatch = false;
+    bool searchingRanked = false;
 
     // Estado de partida
     bool hasGameStarted = false;

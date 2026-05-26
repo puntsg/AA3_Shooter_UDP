@@ -118,6 +118,9 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
     case PacketType::ENDGAME:
         HandleEndGame(client, packet);
         break;
+    case PacketType::DISCONNECT:
+        HandleDisconnectRequest(client);
+        break;
     case PacketType::PLAYER_MOVES:
         std::cout << "player send movement packet" << std::endl;
         break;
@@ -316,6 +319,21 @@ void NetworkManager::HandleRankingRequest(ConnectedClient& client, sf::Packet& p
     responsePacket << static_cast<short>(PacketType::RANKING_RESPONSE);
     responsePacket << response;
     client.socket->send(responsePacket);
+}
+
+void NetworkManager::HandleDisconnectRequest(ConnectedClient& client)
+{
+    RemoveClientFromMatchmakingQueues(client.playerId);
+
+    if (client.currentRoomId.rfind("__queue_", 0) == 0)
+    {
+        client.currentRoomId.clear();
+    }
+
+    SendCreateRoomResponse(client, false, "", "Busqueda cancelada.");
+    std::cout << "[SERVER][Matchmaking] Busqueda cancelada para playerId "
+        << client.playerId
+        << std::endl;
 }
 
 

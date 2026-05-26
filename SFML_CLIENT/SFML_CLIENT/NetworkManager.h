@@ -19,7 +19,7 @@ public:
         return nm;
     }
 
-    // --- Conexion con el servidor bootstrap ---
+    // --- Conexion con el servidor bootstrap ---   
     bool Connect(const sf::IpAddress& serverIp, unsigned short serverPort);
     bool ConnectToServer();       // Usa SERVER_IP y SERVER_PORT por defecto
     void CloseConnection();
@@ -28,7 +28,8 @@ public:
     // --- Protocolo de sala ---
     void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
     void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
-    void SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort);
+    bool SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort);
+    bool SendCancelMatchmakingRequest();
 
     void ReceiveData();
     void NetworkFetch();          // Alias de ReceiveData
