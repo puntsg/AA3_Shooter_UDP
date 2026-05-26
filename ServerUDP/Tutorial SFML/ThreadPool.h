@@ -4,18 +4,20 @@
 #include <queue>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 #include <functional>
-
-#define MAX_THREADS std::thread::hardware_concurrency()
-
+#include <atomic>
 
 class ThreadPool
 {
 public:
+    /// Crea pool con num de threads
     ThreadPool(int numThreads);
+
+    /// Espera a que terminen y destruye el pool.
     ~ThreadPool();
 
-    // Mete un job en la cola
+    /// Encola tarea
     void Enqueue(std::function<void()> task);
 
     int Size() const;
@@ -24,8 +26,9 @@ private:
 
     void Worker();
 
-    std::vector<std::thread> threads;
-    std::queue<std::function<void()>> tasks;
-    std::mutex tasksMutex;
-    bool stopping;
+    std::vector<std::thread>            threads;
+    std::queue<std::function<void()>>   tasks;
+    std::mutex                          tasksMutex;
+    std::condition_variable             cv;
+    std::atomic<bool>                   stopping;
 };
