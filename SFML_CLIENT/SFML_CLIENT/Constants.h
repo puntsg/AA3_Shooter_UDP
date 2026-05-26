@@ -94,11 +94,11 @@ namespace Config
 		const float CREATE_BUTTON_X = 330.f;
 		const float CREATE_BUTTON_Y = 250.f;
 		const float RANKING_BUTTON_X = 330.f;
-		const float RANKING_BUTTON_Y = 400.f;
+		const float RANKING_BUTTON_Y = 455.f;
 		const float BUTTON_WIDTH = 140.f;
 		const float BUTTON_HEIGHT = 45.f;
         const float STATUS_X = 230.f;
-        const float STATUS_Y = 380.f;
+        const float STATUS_Y = 410.f;
         const float ROOM_INFO_X = 20.f;
         const float ROOM_INFO_Y = 20.f;
         const float BUTTON_PADDING = 10.f;

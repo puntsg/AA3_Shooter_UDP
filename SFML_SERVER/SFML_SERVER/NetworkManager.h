@@ -39,6 +39,7 @@ private:
     void HandleMatchmakingRequest(ConnectedClient& client, const CreateRoomRequestData& requestData, bool ranked);
     void HandleEndGame(ConnectedClient& client, sf::Packet& packet);
     void HandleRankingRequest(ConnectedClient& client, sf::Packet& packet);
+    void HandleDisconnectRequest(ConnectedClient& client);
 
     void SendCreateRoomResponse(ConnectedClient& client, bool success, const std::string& roomId, const std::string& message);
     void SendJoinRoomResponse(ConnectedClient& client, bool success, const std::string& roomId, const std::string& message);
@@ -61,6 +62,7 @@ private:
 
     void PrintConnectedClients() const;
 
+
 private:
     sf::TcpListener m_listener;
     bool m_isRunning;
@@ -69,6 +71,7 @@ private:
     std::vector<ConnectedClient> m_clients;
     RoomManager m_roomManager;
     std::map<std::string, std::vector<RankingUpdateData>> pendingRankingUpdates;
+    std::vector<std::string> connectedUsers;
     std::vector<int> m_normalQueue;
     std::vector<int> m_rankedQueue;
 };

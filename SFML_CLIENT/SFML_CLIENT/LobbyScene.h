@@ -17,6 +17,7 @@ private:
 	std::unique_ptr<InputField> roomIdInput;
 	std::unique_ptr<Button> createButton;
 	std::unique_ptr<Button> joinButton;
+    std::unique_ptr<Button> cancelButton;
     std::unique_ptr<Button> rankingButton;
 
     std::string statusText = "Escribe ID de la sala";
@@ -26,6 +27,7 @@ private:
 	void AskJoinRoom();
     void AskNormalMatchmaking();
     void AskRankedMatchmaking();
+    void CancelMatchmaking();
 
 public:
     LobbyScene();

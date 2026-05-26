@@ -43,9 +43,9 @@ public:
 	//Get database data funcs
 	void GetAllPlayers();
 	bool LoginPlayer(LoginRequestData lrd);
-	void AddPlayer(RegisterRequestData rrd);
+	bool AddPlayer(RegisterRequestData rrd);
 	void UpdateScore(Result r);
 	void UpdatePlayerScore(int playerId, int scoreDiff);
-	std::vector<RankingData> GetRanking(std::string playerName);
+	std::vector<RankingData> GetRanking(std::string playerName, bool& success);
 };
 

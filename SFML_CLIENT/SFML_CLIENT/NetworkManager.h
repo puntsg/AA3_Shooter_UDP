@@ -19,7 +19,7 @@ public:
         return nm;
     }
 
-    // --- Conexion con el servidor bootstrap ---
+    // --- Conexion con el servidor bootstrap ---   
     bool Connect(const sf::IpAddress& serverIp, unsigned short serverPort);
     bool ConnectToServer();       // Usa SERVER_IP y SERVER_PORT por defecto
     void CloseConnection();
@@ -28,7 +28,8 @@ public:
     // --- Protocolo de sala ---
     void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
     void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
-    void SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort);
+    bool SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort);
+    bool SendCancelMatchmakingRequest();
 
     void ReceiveData();
     void NetworkFetch();          // Alias de ReceiveData
@@ -46,9 +47,9 @@ public:
     std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections();
     void ClearConnections();
     void SendToServer(sf::Packet& packet);
-    void SendLoginRequest(const std::string& username, const std::string& password);
-    void SendRegisterRequest(const std::string& username, const std::string& password);
-    void SendRankingRequest(const std::string& username);
+    bool SendLoginRequest(const std::string& username, const std::string& password);
+    bool SendRegisterRequest(const std::string& username, const std::string& password);
+    bool SendRankingRequest(const std::string& username);
     void NotifyPlayerWin(const std::string& username);
 
 private:

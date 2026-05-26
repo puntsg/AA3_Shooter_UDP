@@ -118,6 +118,12 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
     case PacketType::ENDGAME:
         HandleEndGame(client, packet);
         break;
+    case PacketType::DISCONNECT:
+        HandleDisconnectRequest(client);
+        break;
+    case PacketType::PLAYER_MOVES:
+        std::cout << "player send movement packet" << std::endl;
+        break;
     default:
         std::cout << "[SERVER] Paquete no gestionado recibido de playerId "
             << client.playerId
@@ -130,11 +136,10 @@ void NetworkManager::HandleRegisterRequest(ConnectedClient& client, sf::Packet& 
 {
     RegisterRequestData registerRequestData;
     packet >> registerRequestData;
-    DC.AddPlayer(registerRequestData);
 
     RegisterResponseData response;
-    response.success = true;
-    response.message = "Register succeed";
+    response.success = DC.AddPlayer(registerRequestData);
+    response.message = response.success ? "Registro completado." : "No se pudo registrar. El usuario puede existir.";
     SendRegisterResponse(client, response);
 }
 
@@ -142,17 +147,29 @@ void NetworkManager::HandleLoginRequest(ConnectedClient& client, sf::Packet& pac
 {
     LoginRequestData loginRequestData;
     packet >> loginRequestData;
+
+    bool alreadyConnected = std::find(
+        connectedUsers.begin(),
+        connectedUsers.end(),
+        loginRequestData.username) != connectedUsers.end();
     bool success = DC.LoginPlayer(loginRequestData);
     LoginResponseData response;
-    response.success = success;
-    if (success) {
+    response.success = !alreadyConnected && success;
+    if (alreadyConnected)
+    {
+        response.message = "Usuario ya conectado.";
+    }
+    else if (response.success) {
         client.username = loginRequestData.username;
         response.username = loginRequestData.username;
         response.playerId = client.playerId;
-        response.message = "Login done";
+        connectedUsers.push_back(loginRequestData.username);
+        response.message = "Login correcto.";
     }
     else
-        response.message = "Login failed";
+    {
+        response.message = "Login incorrecto.";
+    }
     SendLoginResponse(client, response);
 }
 
@@ -284,9 +301,17 @@ void NetworkManager::HandleRankingRequest(ConnectedClient& client, sf::Packet& p
     RankingRequestData rankingRequestData;
     packet >> rankingRequestData;
 
-    std::vector<RankingData> dbRanking = DC.GetRanking(rankingRequestData.username);
+    bool rankingOk = false;
+    std::vector<RankingData> dbRanking = DC.GetRanking(rankingRequestData.username, rankingOk);
 
     RankingResponseData response;
+    response.success = rankingOk;
+    response.message = rankingOk ? "Ranking cargado." : "No se pudo cargar el ranking.";
+    if (rankingOk && dbRanking.empty())
+    {
+        response.message = "No hay datos de ranking.";
+    }
+
     for (int i = 0; i < dbRanking.size(); i++)
         response.entries.push_back(dbRanking[i]);
 
@@ -294,6 +319,21 @@ void NetworkManager::HandleRankingRequest(ConnectedClient& client, sf::Packet& p
     responsePacket << static_cast<short>(PacketType::RANKING_RESPONSE);
     responsePacket << response;
     client.socket->send(responsePacket);
+}
+
+void NetworkManager::HandleDisconnectRequest(ConnectedClient& client)
+{
+    RemoveClientFromMatchmakingQueues(client.playerId);
+
+    if (client.currentRoomId.rfind("__queue_", 0) == 0)
+    {
+        client.currentRoomId.clear();
+    }
+
+    SendCreateRoomResponse(client, false, "", "Busqueda cancelada.");
+    std::cout << "[SERVER][Matchmaking] Busqueda cancelada para playerId "
+        << client.playerId
+        << std::endl;
 }
 
 
@@ -581,6 +621,11 @@ void NetworkManager::RemoveDisconnectedClient(int index)
 
     int playerId = m_clients[index].playerId;
 
+    if (!connectedUsers.empty()) {
+        auto it = std::find(connectedUsers.begin(), connectedUsers.end(), m_clients[index].username);
+        if (it != connectedUsers.end())
+            connectedUsers.erase(it);
+    }
     RemoveClientFromMatchmakingQueues(playerId);
     m_roomManager.RemovePlayerFromRoom(playerId);
 

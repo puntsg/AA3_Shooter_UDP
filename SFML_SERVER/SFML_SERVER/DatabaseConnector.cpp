@@ -1,7 +1,11 @@
 #include "DatabaseConnector.h"
 #include<iostream>
 
-DatabaseConnector::DatabaseConnector(){}
+DatabaseConnector::DatabaseConnector()
+	: con(nullptr)
+	, driver(nullptr)
+{
+}
 
 void DatabaseConnector::ConnectDatabase()
 {
@@ -12,16 +16,23 @@ void DatabaseConnector::ConnectDatabase()
 		std::cout << "Connection done" << std::endl;
 	}
 	catch (sql::SQLException e) {
+		con = nullptr;
 		std::cout << "Could not connect. Error message: " << e.what() << std::endl;
 	}
 }
 
 void DatabaseConnector::DisconnectDatabase()
 {
+	if (con == nullptr)
+	{
+		return;
+	}
+
 	con->close();
 	if (con->isClosed()) {
 		std::cout << "Connection closed" << std::endl;
 		delete con;
+		con = nullptr;
 	}
 }
 
@@ -44,6 +55,12 @@ void DatabaseConnector::GetAllPlayers()
 
 bool DatabaseConnector::LoginPlayer(LoginRequestData lrd)
 {
+	if (con == nullptr)
+	{
+		std::cout << "LoginPlayer error: database not connected" << std::endl;
+		return false;
+	}
+
 	try{
 		sql::PreparedStatement* pstmt = con->prepareStatement("CALL LoginPlayer( ?, ? )");
 		pstmt->setString(1, lrd.username);
@@ -66,13 +83,19 @@ bool DatabaseConnector::LoginPlayer(LoginRequestData lrd)
 		return savedResult;
 	}
 	catch (sql::SQLException& e) {
-		std::cout << "AddPlayer error: " << e.what() << std::endl;
+		std::cout << "LoginPlayer error: " << e.what() << std::endl;
 		return false;
 	}
 }
 
-void  DatabaseConnector::AddPlayer(RegisterRequestData rrd)
+bool DatabaseConnector::AddPlayer(RegisterRequestData rrd)
 {
+	if (con == nullptr)
+	{
+		std::cout << "AddPlayer error: database not connected" << std::endl;
+		return false;
+	}
+
 	try {
 		sql::PreparedStatement* pstmt = con->prepareStatement("CALL AddPlayer( ?, ? )");
 		pstmt->setString(1, rrd.username);
@@ -84,9 +107,11 @@ void  DatabaseConnector::AddPlayer(RegisterRequestData rrd)
 			if(extraRes) delete extraRes;
 		}
 		delete pstmt;
+		return true;
 	}
 	catch (sql::SQLException& e) {
 		std::cout << "AddPlayer error: " << e.what() << std::endl;
+		return false;
 	}
 }
 
@@ -109,25 +134,37 @@ void DatabaseConnector::UpdateScore(Result r)
 	}
 }
 
-std::vector<RankingData> DatabaseConnector::GetRanking(std::string playerName)
+std::vector<RankingData> DatabaseConnector::GetRanking(std::string playerName, bool& success)
 {
 	std::vector<RankingData> rankingDataEntries;
+	success = false;
 
-	sql::PreparedStatement* pstmt = con->prepareStatement("CALL GetRanking(?)");
-	pstmt->setString(1, playerName);
-	sql::ResultSet* res = pstmt->executeQuery();
-	while (res->next()) {
-		RankingData rd;
-		rd.playerName = res->getString("Username");
-		rd.score = res->getInt("Score");
-		rankingDataEntries.push_back(rd);
+	if (con == nullptr) {
+		std::cout << "GetRanking error: database not connected" << std::endl;
+		return rankingDataEntries;
 	}
-	delete res;
-	while (pstmt->getMoreResults()) {
-		sql::ResultSet* extraRes = pstmt->getResultSet();
-		if (extraRes) delete extraRes;
+
+	try {
+		sql::PreparedStatement* pstmt = con->prepareStatement("CALL GetRanking(?)");
+		pstmt->setString(1, playerName);
+		sql::ResultSet* res = pstmt->executeQuery();
+		while (res->next()) {
+			RankingData rd;
+			rd.playerName = res->getString("Username");
+			rd.score = res->getInt("Score");
+			rankingDataEntries.push_back(rd);
+		}
+		delete res;
+		while (pstmt->getMoreResults()) {
+			sql::ResultSet* extraRes = pstmt->getResultSet();
+			if (extraRes) delete extraRes;
+		}
+		delete pstmt;
+		success = true;
 	}
-	delete pstmt;
+	catch (sql::SQLException& e) {
+		std::cout << "GetRanking error: " << e.what() << std::endl;
+	}
 
 	return rankingDataEntries;
 }
