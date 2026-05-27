@@ -2,7 +2,22 @@
 #include "DatabaseConnector.h"
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+
+static constexpr const char* MAPS_DIR = "maps/";
+
+// Busca txt devuelve nombre
+static std::string GetCurrentMapFilename()
+{
+    for (const auto& entry : std::filesystem::directory_iterator(MAPS_DIR))
+    {
+        if (entry.path().extension() == ".txt")
+            return entry.path().filename().string();
+    }
+    return "";
+}
 
 NetworkManager::NetworkManager()
     : m_isRunning(false)
@@ -100,6 +115,12 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
     std::cout << "[SERVER] Processing package: " << packetType << std::endl << " from: " << client.username << std::endl;
     switch (packetType)
     {
+    case PacketType::CHECK_MAP:
+        HandleCheckMap(client, packet);
+        break;
+    case PacketType::MAP_REQUEST:
+        HandleMapRequest(client);
+        break;
     case PacketType::REGISTER_REQUEST:
         HandleRegisterRequest(client, packet);
         break;
@@ -130,6 +151,55 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
             << std::endl;
         break;
     }
+}
+
+void NetworkManager::HandleCheckMap(ConnectedClient& client, sf::Packet& packet)
+{
+    MapCheckData checkData;
+    packet >> checkData;
+
+    std::string currentFilename = GetCurrentMapFilename();
+
+    MapStatusData statusData;
+    statusData.upToDate = (!currentFilename.empty() && checkData.version == currentFilename);
+
+    sf::Packet responsePacket;
+    responsePacket << PacketType::MAP_STATUS << statusData;
+    client.socket->send(responsePacket);
+
+    std::cout << "[SERVER] CheckMap de playerId " << client.playerId
+              << " | cliente: " << checkData.version
+              << " | servidor: " << currentFilename
+              << " | upToDate: " << statusData.upToDate << std::endl;
+}
+
+void NetworkManager::HandleMapRequest(ConnectedClient& client)
+{
+    std::string currentFilename = GetCurrentMapFilename();
+    std::string mapFilePath     = std::string(MAPS_DIR) + currentFilename;
+
+    std::ifstream mapFile(mapFilePath);
+    std::string mapContent;
+
+    if (mapFile.is_open())
+    {
+        mapContent = std::string(std::istreambuf_iterator<char>(mapFile),
+                                 std::istreambuf_iterator<char>());
+    }
+    else
+    {
+        std::cerr << "[SERVER] No se encontro el archivo de mapa: " << mapFilePath << std::endl;
+    }
+
+    MapResponseData mapData;
+    mapData.version    = currentFilename;   // nombre del .txt
+    mapData.mapContent = mapContent;
+
+    sf::Packet responsePacket;
+    responsePacket << PacketType::MAP_RESPONSE << mapData;
+    client.socket->send(responsePacket);
+
+    std::cout << "[SERVER] Mapa '" << currentFilename << "' enviado a playerId " << client.playerId << std::endl;
 }
 
 void NetworkManager::HandleRegisterRequest(ConnectedClient& client, sf::Packet& packet)

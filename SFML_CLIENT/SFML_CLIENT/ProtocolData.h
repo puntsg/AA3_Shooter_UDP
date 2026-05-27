@@ -310,6 +310,48 @@ sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data);
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data);
 sf::Packet& operator>>(sf::Packet& packet, StartGameData& data);
 
+// Launcher / verificacion de mapa
+struct MapCheckData
+{
+    std::string version;
+};
+
+struct MapStatusData
+{
+    bool upToDate = false;
+};
+
+struct MapResponseData
+{
+    std::string version;
+    std::string mapContent;
+};
+
+inline sf::Packet& operator<<(sf::Packet& packet, const MapCheckData& data)
+{
+    return packet << data.version;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, MapCheckData& data)
+{
+    return packet >> data.version;
+}
+inline sf::Packet& operator<<(sf::Packet& packet, const MapStatusData& data)
+{
+    return packet << data.upToDate;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, MapStatusData& data)
+{
+    return packet >> data.upToDate;
+}
+inline sf::Packet& operator<<(sf::Packet& packet, const MapResponseData& data)
+{
+    return packet << data.version << data.mapContent;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, MapResponseData& data)
+{
+    return packet >> data.version >> data.mapContent;
+}
+
 // RankingUpdateData
 inline sf::Packet& operator<<(sf::Packet& packet, const RankingUpdateData& data)
 {
