@@ -31,6 +31,9 @@ private:
 
     void ProcessPacket(ConnectedClient& client, sf::Packet& packet);
 
+    void HandleCheckMap(ConnectedClient& client, sf::Packet& packet);
+    void HandleMapRequest(ConnectedClient& client);
+
     void HandleRegisterRequest(ConnectedClient& client, sf::Packet& packet);
     void HandleLoginRequest(ConnectedClient& client, sf::Packet& packet);
 
