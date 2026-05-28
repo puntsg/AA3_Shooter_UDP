@@ -42,8 +42,17 @@ struct SessionStartData
     std::vector<LobbyPlayerInfo> players; // siempre 2 jugadores
 };
 
+struct SessionStartResponseData
+{
+    bool success = false;
+    std::string roomId;
+    std::string message; // mensaje simple para debug en matchmaking
+};
+
 sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data);
 sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data);
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartResponseData& data);
+sf::Packet& operator>>(sf::Packet& packet, SessionStartResponseData& data);
 
 
 struct TransformData

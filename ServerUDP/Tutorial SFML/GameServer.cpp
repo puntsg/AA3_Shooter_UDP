@@ -71,8 +71,18 @@ void GameServer::TcpListenerLoop()
             PacketType type = NONE;
             packet >> type;
 
-            if (type == START_GAME)
-                HandleSessionStart(packet);
+            // esto lo manda el server de matchmaking al encontrar 2 players
+            if (type == SESSION_START_REQUEST)
+            {
+                SessionStartResponseData response;
+                HandleSessionStart(packet, response);
+
+                // contestamos OK/FAIL para que no mande START_GAME a lo loco
+                sf::Packet responsePacket;
+                responsePacket << PacketType::SESSION_START_RESPONSE << response;
+                if (bootstrapSocket.send(responsePacket) != sf::Socket::Status::Done)
+                    std::cerr << "Fail sending session response" << std::endl;
+            }
         }
 
         bootstrapSocket.disconnect();
@@ -123,13 +133,18 @@ void GameServer::UpdateLoop()
     }
 }
 
-void GameServer::HandleSessionStart(sf::Packet& packet)
+bool GameServer::HandleSessionStart(sf::Packet& packet, SessionStartResponseData& response)
 {
     SessionStartData sessionData;
     packet >> sessionData;
 
+    response.roomId = sessionData.roomId;
     if (sessionData.players.size() < 2)
-        return;
+    {
+        response.success = false;
+        response.message = "Faltan jugadores para crear la sesion.";
+        return false;
+    }
 
     std::shared_ptr<GameSession> session = std::make_shared<GameSession>(
         sessionData.roomId,
@@ -138,13 +153,15 @@ void GameServer::HandleSessionStart(sf::Packet& packet)
         udpSocket
     );
 
-    {
-        std::lock_guard<std::mutex> lock(sessionsMutex);
-        sessions[sessionData.roomId] = session;
-    }
+    sessions[sessionData.roomId] = session;
+
+    response.success = true;
+    response.message = "Sesion creada en Game Server.";
 
     std::cout << "Room created: " << sessionData.roomId
         << " Total rooms: " << sessions.size() << std::endl;
+
+    return true;
 }
 
 void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short senderPort, sf::Packet& packet)

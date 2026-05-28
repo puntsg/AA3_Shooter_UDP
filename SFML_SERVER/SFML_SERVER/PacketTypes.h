@@ -55,7 +55,11 @@ enum PacketType
 	PING,
 
 	//Generico
-	ERROR_MESSAGE
+	ERROR_MESSAGE,
+
+	//Comunicacion interna entre este server y el Game Server
+	SESSION_START_REQUEST = 100,
+	SESSION_START_RESPONSE = 101
 };
 
 inline sf::Packet& operator <<(sf::Packet& packet, const PacketType& type)

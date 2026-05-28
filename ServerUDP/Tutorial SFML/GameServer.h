@@ -30,7 +30,7 @@ private:
     void UdpReceiveLoop();
     void UpdateLoop();
 
-    void HandleSessionStart(sf::Packet& packet);
+    bool HandleSessionStart(sf::Packet& packet, SessionStartResponseData& response);
     void RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short senderPort, sf::Packet& packet);
     void CleanFinishedSessions();
 

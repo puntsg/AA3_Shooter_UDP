@@ -117,3 +117,53 @@ sf::Packet& operator>>(sf::Packet& packet, StartGameData& data)
 
     return packet;
 }
+
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data)
+{
+    packet << data.roomId
+        << data.playerCount;
+
+    // Enviamos los players tal cual para que el Game Server sepa a quien esperar
+    for (const LobbyPlayerInfo& player : data.players)
+    {
+        packet << player;
+    }
+
+    return packet;
+}
+
+sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data)
+{
+    packet >> data.roomId
+        >> data.playerCount;
+
+    data.players.clear();
+
+    // playerCount marca cuantos LobbyPlayerInfo vienen despues
+    for (int i = 0; i < data.playerCount; ++i)
+    {
+        LobbyPlayerInfo player;
+        packet >> player;
+        data.players.push_back(player);
+    }
+
+    return packet;
+}
+
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartResponseData& data)
+{
+    packet << data.success
+        << data.roomId
+        << data.message;
+
+    return packet;
+}
+
+sf::Packet& operator>>(sf::Packet& packet, SessionStartResponseData& data)
+{
+    packet >> data.success
+        >> data.roomId
+        >> data.message;
+
+    return packet;
+}

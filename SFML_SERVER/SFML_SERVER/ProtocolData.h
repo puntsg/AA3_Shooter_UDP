@@ -133,6 +133,22 @@ struct StartGameData
     std::vector<LobbyPlayerInfo> players;
 };
 
+// Datos que mandamos al Game Server cuando matchmaking encuentra partida
+struct SessionStartData
+{
+    std::string roomId;
+    int playerCount = 0;
+    std::vector<LobbyPlayerInfo> players;
+};
+
+// Respuesta simple del Game Server para saber si ha creado la sala
+struct SessionStartResponseData
+{
+    bool success = false;
+    std::string roomId;
+    std::string message;
+};
+
 struct Result {
     std::string username;
     int scoredPoints = 0;
@@ -310,6 +326,11 @@ sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data);
 
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data);
 sf::Packet& operator>>(sf::Packet& packet, StartGameData& data);
+
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data);
+sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data);
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartResponseData& data);
+sf::Packet& operator>>(sf::Packet& packet, SessionStartResponseData& data);
 
 // Launcher / verificacion de mapa
 struct MapCheckData

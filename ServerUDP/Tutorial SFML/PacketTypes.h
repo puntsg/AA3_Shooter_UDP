@@ -44,7 +44,11 @@ enum PacketType
     PLAYER_DISCONNECTED,
     PING,
 
-    ERROR_MESSAGE
+    ERROR_MESSAGE,
+
+    // Comunicacion Matchmaking Server -> Game Server
+    SESSION_START_REQUEST = 100,
+    SESSION_START_RESPONSE = 101
 };
 
 inline sf::Packet& operator<<(sf::Packet& packet, const PacketType& type)

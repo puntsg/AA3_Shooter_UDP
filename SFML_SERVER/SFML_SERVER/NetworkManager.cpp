@@ -5,8 +5,11 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <SFML/System.hpp>
 
 static constexpr const char* MAPS_DIR = "maps/";
+// Puerto TCP interno donde el Game Server escucha las salas nuevas
+static constexpr unsigned short GAME_SERVER_TCP_PORT = 55001;
 
 // Busca txt devuelve nombre
 static std::string GetCurrentMapFilename()
@@ -481,6 +484,80 @@ void NetworkManager::SendErrorMessage(ConnectedClient& client, const std::string
     client.socket->send(packet);
 }
 
+bool NetworkManager::SendSessionToGameServer(const StartGameData& startData, std::string& message)
+{
+    // De momento este IP
+    const sf::IpAddress gameServerIp = sf::IpAddress(127, 0, 0, 1);
+
+    sf::TcpSocket gameServerSocket;
+    gameServerSocket.setBlocking(true);
+
+    if (gameServerSocket.connect(gameServerIp, GAME_SERVER_TCP_PORT, sf::milliseconds(1500)) != sf::Socket::Status::Done)
+    {
+        message = "No se pudo conectar con el Game Server.";
+        return false;
+    }
+
+    SessionStartData sessionData;
+    sessionData.roomId = startData.roomId;
+    sessionData.playerCount = startData.playerCount;
+    sessionData.players = startData.players;
+
+    // El matchmaking le pasa la room al Game Server para que la prepare
+    sf::Packet requestPacket;
+    requestPacket << static_cast<short>(PacketType::SESSION_START_REQUEST);
+    requestPacket << sessionData;
+
+    if (gameServerSocket.send(requestPacket) != sf::Socket::Status::Done)
+    {
+        message = "No se pudo enviar la sesion al Game Server.";
+        gameServerSocket.disconnect();
+        return false;
+    }
+
+    gameServerSocket.setBlocking(false);
+    sf::Clock waitClock;
+
+    // Esperamos una respuesta corta para no dejar a los clientes colgados
+    while (waitClock.getElapsedTime().asMilliseconds() < 1500)
+    {
+        sf::Packet responsePacket;
+        sf::Socket::Status status = gameServerSocket.receive(responsePacket);
+
+        if (status == sf::Socket::Status::Done)
+        {
+            PacketType responseType = PacketType::NONE;
+            responsePacket >> responseType;
+
+            if (responseType != PacketType::SESSION_START_RESPONSE)
+            {
+                message = "Respuesta inesperada del Game Server.";
+                gameServerSocket.disconnect();
+                return false;
+            }
+
+            SessionStartResponseData responseData;
+            responsePacket >> responseData;
+            message = responseData.message;
+            gameServerSocket.disconnect();
+            return responseData.success;
+        }
+
+        if (status == sf::Socket::Status::Disconnected || status == sf::Socket::Status::Error)
+        {
+            message = "El Game Server cerro la conexion.";
+            gameServerSocket.disconnect();
+            return false;
+        }
+
+        sf::sleep(sf::milliseconds(10));
+    }
+
+    message = "El Game Server no respondio a tiempo.";
+    gameServerSocket.disconnect();
+    return false;
+}
+
 void NetworkManager::BroadcastRoomStatus(const std::string& roomId)
 {
     Room* room = m_roomManager.GetRoom(roomId);
@@ -546,6 +623,7 @@ void NetworkManager::TryStartGame(const std::string& roomId)
 
     room->inGame = true;
 
+    // Este paquete luego se manda a los clientes por TCP con la info de la partida
     StartGameData startData;
     startData.roomId = room->roomId;
     startData.playerCount = static_cast<short>(room->playerIds.size());
@@ -568,6 +646,36 @@ void NetworkManager::TryStartGame(const std::string& roomId)
         startData.players.push_back(playerInfo);
     }
 
+    std::string gameServerMessage;
+    // Primero tiene que existir la sala en el Game Server
+    if (!SendSessionToGameServer(startData, gameServerMessage))
+    {
+        room->inGame = false;
+
+        std::cerr << "[SERVER] No se pudo iniciar Game Server para sala "
+            << roomId
+            << ": "
+            << gameServerMessage
+            << std::endl;
+
+        for (int playerId : room->playerIds)
+        {
+            ConnectedClient* roomClient = GetClientById(playerId);
+            if (roomClient != nullptr)
+            {
+                SendErrorMessage(*roomClient, "No se pudo iniciar la partida: " + gameServerMessage);
+            }
+        }
+
+        return;
+    }
+
+    std::cout << "[SERVER] Game Server preparado para sala "
+        << roomId
+        << ": "
+        << gameServerMessage
+        << std::endl;
+
     for (int playerId : room->playerIds)
     {
         ConnectedClient* roomClient = GetClientById(playerId);
@@ -582,6 +690,7 @@ void NetworkManager::TryStartGame(const std::string& roomId)
         roomClient->socket->send(packet);
     }
 
+    // Si llega aqui, el Game Server ya ha dicho OK
     std::cout << "[SERVER] START_GAME enviado para sala " << roomId << std::endl;
 
     for (int playerId : room->playerIds)
