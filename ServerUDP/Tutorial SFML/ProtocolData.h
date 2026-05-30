@@ -34,16 +34,32 @@ inline sf::Packet& operator>>(sf::Packet& packet, LobbyPlayerInfo& data)
     return packet;
 }
 
-// lo que manda el servidor TCP al UDP
+// sala que llega desde matchmaking
 struct SessionStartData
 {
     std::string roomId;
     int playerCount = 0;
-    std::vector<LobbyPlayerInfo> players; // siempre 2 jugadores
+    std::vector<LobbyPlayerInfo> players;
+};
+
+struct SessionStartResponseData
+{
+    bool success = false;
+    std::string roomId;
+    std::string message;
+};
+
+// hello del cliente
+struct UdpHelloData
+{
+    std::string roomId;
+    int playerId = -1;
 };
 
 sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data);
 sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data);
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartResponseData& data);
+sf::Packet& operator>>(sf::Packet& packet, SessionStartResponseData& data);
 
 
 struct TransformData
@@ -119,5 +135,17 @@ inline sf::Packet& operator<<(sf::Packet& packet, const EndgameData& data)
 inline sf::Packet& operator>>(sf::Packet& packet, EndgameData& data)
 {
     packet >> data.winnerPlayerId >> data.loserPlayerId >> data.cheating;
+    return packet;
+}
+
+inline sf::Packet& operator<<(sf::Packet& packet, const UdpHelloData& data)
+{
+    packet << data.roomId << data.playerId;
+    return packet;
+}
+
+inline sf::Packet& operator>>(sf::Packet& packet, UdpHelloData& data)
+{
+    packet >> data.roomId >> data.playerId;
     return packet;
 }

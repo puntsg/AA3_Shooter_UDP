@@ -46,6 +46,7 @@ public:
     const std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections() const;
     std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections();
     void ClearConnections();
+    bool SendUdpHelloReady();
     void SendToServer(sf::Packet& packet);
     bool SendLoginRequest(const std::string& username, const std::string& password);
     bool SendRegisterRequest(const std::string& username, const std::string& password);
@@ -70,12 +71,14 @@ private:
 
 
     sf::TcpSocket m_socket;
+    sf::UdpSocket m_udpSocket;
     bool m_isConnected;
+    bool m_udpSocketReady;
     ClientState m_clientState;
     sf::TcpListener* listener;
 
     std::vector<std::unique_ptr<sf::TcpSocket>> m_gameConnections;
 
     static constexpr unsigned short SERVER_PORT = 55000;
-    const sf::IpAddress SERVER_IP = sf::IpAddress(127, 0, 0, 1);
+    const sf::IpAddress SERVER_IP = sf::IpAddress(192, 168, 0, 12);
 };

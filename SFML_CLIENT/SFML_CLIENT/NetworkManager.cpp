@@ -3,6 +3,8 @@
 
 NetworkManager::NetworkManager()
     : m_isConnected(false)
+    , m_udpSocketReady(false)
+    , listener(nullptr)
 {
 }
 
@@ -137,7 +139,45 @@ void NetworkManager::ClearConnections()
         listener = nullptr;
     }
 
+    if (m_udpSocketReady)
+    {
+        m_udpSocket.unbind();
+        m_udpSocketReady = false;
+    }
+
     std::cout << "[CLIENT] Conexiones P2P y listener cerrados." << std::endl;
+}
+
+bool NetworkManager::SendUdpHelloReady()
+{
+    auto ip = sf::IpAddress::resolve(m_clientState.gameServerIp);
+    sf::IpAddress gameServerIp = ip.value();
+
+    if (!m_udpSocketReady)
+    {
+        // puerto libre
+        m_udpSocket.bind(sf::Socket::AnyPort);
+        m_udpSocket.setBlocking(false);
+        m_udpSocketReady = true;
+    }
+
+    UdpHelloData helloData;
+    helloData.roomId = m_clientState.currentRoomId;
+    helloData.playerId = m_clientState.playerId;
+
+    sf::Packet packet;
+    packet << PacketType::UDP_HELLO << helloData;
+
+    m_udpSocket.send(packet, gameServerIp, m_clientState.gameServerUdpPort);
+
+    std::cout << "[CLIENT-UDP] hello -> "
+        << m_clientState.gameServerIp << ":" 
+        << m_clientState.gameServerUdpPort 
+        << " puerto local "
+        << m_udpSocket.getLocalPort()
+        << std::endl;
+
+    return true;
 }
 
 bool NetworkManager::Connect(const sf::IpAddress& serverIp, unsigned short serverPort)
@@ -536,10 +576,16 @@ void NetworkManager::HandleStartGame(sf::Packet& packet)
         << startData.roomId
         << " | Players: "
         << startData.playerCount
+        << " | GameServer UDP: "
+        << startData.gameServerIp
+        << ":"
+        << startData.gameServerUdpPort
         << std::endl;
 
     m_clientState.currentRoomId = startData.roomId;
     m_clientState.roomPlayers = startData.players;
+    m_clientState.gameServerIp = startData.gameServerIp;
+    m_clientState.gameServerUdpPort = startData.gameServerUdpPort;
     m_clientState.hasGameStarted = true;
     m_clientState.isWaitingInRoom = false;
     m_clientState.isSearchingMatch = false;

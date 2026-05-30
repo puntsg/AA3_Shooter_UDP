@@ -130,7 +130,25 @@ struct StartGameData
 {
     std::string roomId;
     int playerCount = 0;
+    std::string gameServerIp;
+    unsigned short gameServerUdpPort = 0;
     std::vector<LobbyPlayerInfo> players;
+};
+
+// sala para el UDP
+struct SessionStartData
+{
+    std::string roomId;
+    int playerCount = 0;
+    std::vector<LobbyPlayerInfo> players;
+};
+
+// respuesta del UDP
+struct SessionStartResponseData
+{
+    bool success = false;
+    std::string roomId;
+    std::string message;
 };
 
 struct Result {
@@ -310,6 +328,11 @@ sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data);
 
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data);
 sf::Packet& operator>>(sf::Packet& packet, StartGameData& data);
+
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data);
+sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data);
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartResponseData& data);
+sf::Packet& operator>>(sf::Packet& packet, SessionStartResponseData& data);
 
 // Launcher / verificacion de mapa
 struct MapCheckData

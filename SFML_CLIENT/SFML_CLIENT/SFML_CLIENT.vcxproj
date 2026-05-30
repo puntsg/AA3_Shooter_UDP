@@ -141,6 +141,7 @@
     <ClCompile Include="GameManager.cpp" />
     <ClCompile Include="GameScene.cpp" />
     <ClCompile Include="InputField.cpp" />
+    <ClCompile Include="LauncherManager.cpp" />
     <ClCompile Include="LobbyScene.cpp" />
     <ClCompile Include="LoginScene.cpp" />
     <ClCompile Include="NetworkManager.cpp" />
@@ -157,6 +158,7 @@
     <ClInclude Include="GameManager.h" />
     <ClInclude Include="GameScene.h" />
     <ClInclude Include="InputField.h" />
+    <ClInclude Include="LauncherManager.h" />
     <ClInclude Include="LobbyScene.h" />
     <ClInclude Include="LoginScene.h" />
     <ClInclude Include="NetworkManager.h" />

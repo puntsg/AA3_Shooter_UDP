@@ -50,6 +50,8 @@ private:
     void SendRegisterResponse(ConnectedClient& client, const RegisterResponseData& data);
     void SendErrorMessage(ConnectedClient& client, const std::string& message);
 
+    bool SendSessionToGameServer(const StartGameData& startData, std::string& message);
+
     void BroadcastRoomStatus(const std::string& roomId);
     void TryStartGame(const std::string& roomId);
     void TryCreateMatchFromQueue(std::vector<int>& queue, const std::string& queueName);

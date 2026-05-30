@@ -88,7 +88,9 @@ sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data)
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data)
 {
     packet << data.roomId
-        << data.playerCount;
+        << data.playerCount
+        << data.gameServerIp
+        << data.gameServerUdpPort;
 
     packet << static_cast<int>(data.players.size());
     for (const LobbyPlayerInfo& player : data.players)
@@ -105,6 +107,8 @@ sf::Packet& operator>>(sf::Packet& packet, StartGameData& data)
 
     packet >> data.roomId
         >> data.playerCount
+        >> data.gameServerIp
+        >> data.gameServerUdpPort
         >> vectorSize;
 
     data.players.clear();

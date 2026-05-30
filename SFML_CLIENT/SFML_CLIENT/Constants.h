@@ -13,7 +13,7 @@ namespace Config
 
     namespace Connection
     {
-        inline const char* SERVER_IP = "127.0.0.1";
+        inline const char* SERVER_IP = "192.168.0.12";
         const unsigned short SERVER_PORT = 55000;
         const unsigned short GAME_PORT = 56000;
 
