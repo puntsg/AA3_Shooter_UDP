@@ -1,96 +1,96 @@
 #include "GameScene.h"
 #include "NetworkManager.h"
+#include "SceneManager.h"
 #include <iostream>
-
-void GameScene::SetupGame(const std::vector<Player>& players, int localID)
-{
-    gameManager.InitGame(players, localID);
-}
-void GameScene::SyncNextTurn(int playerID)
-{
-    gameManager.SyncNextTurn(playerID);
-}
 
 void GameScene::OnEnter()
 {
-    std::cout << "Entrando a GameScene..." << std::endl;
-    auto& state = NM.GetClientState();
-    std::vector<Player> gamePlayers;
-    int myIndex = -1;
+    std::cout << "[GameScene] Iniciando partida shooter..." << std::endl;
 
-    for (int i = 0; i < (int)state.roomPlayers.size(); ++i)
-    {
-        const auto& lp = state.roomPlayers[i];
-        Player p;
-        p.id = lp.playerId;
-        p.nickName = lp.username;
-        gamePlayers.push_back(p);
+    const ClientState& state = NM.GetClientState();
+    m_gameManager.InitGame(state.roomPlayers, state.playerId);
+    m_gameOverTimer = 0.f;
 
-        if (lp.playerId == state.playerId) {
-            myIndex = i;
-        }
-    }
-
-    SetupGame(gamePlayers, state.playerId);
-
-    if (myIndex == -1)
-    {
-        std::cerr << "[CLIENT] No encuentro mi playerId en START_GAME." << std::endl;
-        return;
-    }
-
-    // hello al udp
+    // Registrar endpoint
     NM.SendUdpHelloReady();
-
-    // Iniciar listener P2P
-    NM.StartP2PListener(state.roomPlayers[myIndex].gamePort);
-
-    for (int i = 0; i < (int)state.roomPlayers.size(); ++i)
-    {
-        if (i == myIndex) continue; // No conectar a ti mismo
-
-        const auto& lp = state.roomPlayers[i];
-        std::cout << "[CLIENT] Intentando conectar a " << lp.username
-            << " (" << lp.ip << ":" << lp.gamePort << ")" << std::endl;
-
-        for (int intento = 0; intento < 10; ++intento) {
-            NM.AddConnection(lp.ip, lp.gamePort);
-            sf::sleep(sf::milliseconds(100));
-        }
-    }
-
-    std::cout << "[CLIENT] Conexiones establecidas: " << NM.GetConnections().size() << std::endl;
 }
 
-void GameScene::HandleEvent(const sf::Event& event) {
-    if (event.is<sf::Event::MouseButtonPressed>())
-    {
-        const sf::Event::MouseButtonPressed* mbInfo =
-            event.getIf<sf::Event::MouseButtonPressed>();
-
-        if (mbInfo && mbInfo->button == sf::Mouse::Button::Left)
-        {
-            gameManager.TryPlacePieceScreen(static_cast<float>(mbInfo->position.x), static_cast<float>(mbInfo->position.y));
-        }
-    }
+void GameScene::HandleEvent(const sf::Event& event)
+{
+    m_gameManager.HandleInput(event);
 }
 
 void GameScene::Update(float dt)
 {
-    NM.NetworkFetch();
-    gameManager.ReceiveNetworkMoves();
-    gameManager.Update(dt);
+    NM.ReceiveUdpData();
+
+    ClientState& cs = NM.GetClientState();
+
+    for (const TransformData& t : cs.incomingTransforms)
+        m_gameManager.ApplyTransform(t);
+
+    if (cs.hasShootReplicate)
+    {
+        m_gameManager.SpawnRivalBullet(cs.lastShootReplicate);
+        cs.hasShootReplicate = false;
+    }
+
+    if (cs.hasPlayerHit)
+    {
+        m_gameManager.ApplyHit(cs.lastPlayerHit);
+        cs.hasPlayerHit = false;
+    }
+
+    if (cs.hasTaunt)
+    {
+        m_gameManager.ApplyTaunt(cs.tauntPlayerId);
+        cs.hasTaunt = false;
+    }
+
+    if (cs.hasEndgame)
+    {
+        m_gameManager.ApplyEndgame(cs.endgameData);
+        cs.hasEndgame = false;
+    }
+
+    m_gameManager.Update(dt);
+
+    if (m_gameManager.IsGameOver())
+    {
+        m_gameOverTimer += dt;
+        if (m_gameOverTimer >= 3.f)
+            HandleGameEnd();
+    }
 }
 
 void GameScene::Render(sf::RenderWindow& window)
 {
-    gameManager.DrawGrid(window);
-    gameManager.DrawHUD(window);
+    m_gameManager.DrawGame(window);
+    m_gameManager.DrawHUD(window);
 }
 
 void GameScene::OnExit()
 {
-    std::cout << "Saliendo de GameScene..." << std::endl;
+    std::cout << "[GameScene] Saliendo de la partida." << std::endl;
     NM.ClearConnections();
-    gameManager.Reset();
+    m_gameManager.Reset();
+}
+
+void GameScene::HandleGameEnd()
+{
+    // Reconectar al servidor bootstrap para volver al lobby
+    if (NM.ConnectToServer())
+    {
+        NM.SendLoginRequest(
+            NM.GetClientState().nickname,
+            NM.GetClientState().savedPassword
+        );
+        std::cout << "[GameScene] Reconectado al servidor bootstrap." << std::endl;
+    }
+    else
+    {
+        std::cerr << "[GameScene] No se pudo reconectar al servidor." << std::endl;
+    }
+
+    SM.SetNextScene("LobbyScene");
 }
