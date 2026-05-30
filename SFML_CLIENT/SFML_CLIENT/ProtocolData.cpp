@@ -2,7 +2,7 @@
 
 sf::Packet& operator<<(sf::Packet& packet, const RankingResponseData& data)
 {
-    packet << static_cast<int>(data.entries.size());
+    packet << data.success << data.message << static_cast<int>(data.entries.size());
     for (int i = 0; i < (int)data.entries.size(); i++)
         packet << data.entries[i];
     return packet;
@@ -11,7 +11,7 @@ sf::Packet& operator<<(sf::Packet& packet, const RankingResponseData& data)
 sf::Packet& operator>>(sf::Packet& packet, RankingResponseData& data)
 {
     int count = 0;
-    packet >> count;
+    packet >> data.success >> data.message >> count;
     data.entries.resize(count);
     for (int i = 0; i < count; i++)
         packet >> data.entries[i];
@@ -88,7 +88,9 @@ sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data)
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data)
 {
     packet << data.roomId
-        << data.playerCount;
+        << data.playerCount
+        << data.gameServerIp
+        << data.gameServerUdpPort;
 
     packet << static_cast<int>(data.players.size());
     for (const LobbyPlayerInfo& player : data.players)
@@ -105,6 +107,8 @@ sf::Packet& operator>>(sf::Packet& packet, StartGameData& data)
 
     packet >> data.roomId
         >> data.playerCount
+        >> data.gameServerIp
+        >> data.gameServerUdpPort
         >> vectorSize;
 
     data.players.clear();

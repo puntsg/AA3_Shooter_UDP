@@ -23,7 +23,7 @@ USE `videogame`;
 DELIMITER //
 CREATE PROCEDURE `AddPlayer`(IN iUsername VARCHAR(50), IN iPassword CHAR(64))
 BEGIN
-    INSERT INTO Players (Username, Password, Score) 
+    INSERT INTO players (Username, Password, Score) 
     VALUES (iUsername, iPassword, 0);
 END//
 DELIMITER ;
@@ -32,7 +32,7 @@ DELIMITER ;
 DELIMITER //
 CREATE PROCEDURE `DeletePlayer`(IN iId INT UNSIGNED)
 BEGIN
-    DELETE FROM Players WHERE Id = iId;
+    DELETE FROM players WHERE Id = iId;
 END//
 DELIMITER ;
 
@@ -41,12 +41,12 @@ DELIMITER //
 CREATE PROCEDURE `GetRanking`(IN iUsername VARCHAR(50))
 BEGIN
     (SELECT Id, Username, Score 
-     FROM Players 
+     FROM players 
      ORDER BY Score DESC 
      LIMIT 10)
     UNION
     (SELECT Id, Username, Score 
-     FROM Players 
+     FROM players 
      WHERE Username = iUsername)
     ORDER BY Score DESC;
 END//
@@ -57,7 +57,7 @@ DELIMITER //
 CREATE PROCEDURE `LoginPlayer`(IN iUsername VARCHAR(50), IN iPassword CHAR(64))
 BEGIN
     SELECT Id, Username, Score 
-    FROM Players 
+    FROM players 
     WHERE Username = iUsername AND Password = iPassword;
 END//
 DELIMITER ;
@@ -75,21 +75,21 @@ CREATE TABLE IF NOT EXISTS `players` (
 -- Volcando datos para la tabla videogame.players: ~9 rows (aproximadamente)
 DELETE FROM `players`;
 INSERT INTO `players` (`Id`, `Username`, `Password`, `Score`) VALUES
-	(1, 'a', 'ca978112ca1bbdcafac2', 0),
-	(2, 'b', '3e23e8160039594a3389', 0),
-	(3, 'c', '2e7d2c03a9507ae265ec', 0),
-	(4, 'edgar', '8849853b957fe153b705', 0),
-	(5, 'sergi', '4d0af2adc4ed954308d9', 0),
-	(6, 'carol', '4c26d9074c27d89ede59', 0),
-	(7, 'Richard', 'b10883f7f6046846019e', 0),
-	(8, 'Radev', '932cc859d4215f975c3c', 0),
-	(9, 'Alex', 'f1aad41d0dd24ed8a193', 0);
+	(1, 'a', 'ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb', 0),
+	(2, 'b', '3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d', 0),
+	(3, 'c', '2e7d2c03a9507ae265ecf5b5356885a53393a2029d241394997265a1a25aefc6', 0),
+	(4, 'edgar', '8849853b957fe153b7056d0e7d65f99fb21070daf5122ddf1d7c942d4643c33d', 0),
+	(5, 'sergi', '4d0af2adc4ed954308d9af5dc082058266e72db750dfef7728d5e830a9a31bf7', 0),
+	(6, 'carol', '4c26d9074c27d89ede59270c0ac14b71e071b15239519f75474b2f3ba63481f5', 0),
+	(7, 'Richard', '1deb0a3b86750d0e4a4c21dc9601736954ae5ccac654c57f3d45563a1f595998', 0),
+	(8, 'Radev', '835ed5ddd08a2ea98a45338e7d2f76b5500ef27787131bb8fd9d6b3672ac0b5a', 0),
+	(9, 'Alex', 'db74c940d447e877d119df613edd2700c4a84cd1cf08beb7cbc319bcfaeab97a', 0);
 
 -- Volcando estructura para procedimiento videogame.UpdateScore
 DELIMITER //
 CREATE PROCEDURE `UpdateScore`(IN iUsername VARCHAR(50), IN iAddedPoints INT)
 BEGIN
-    UPDATE Players 
+    UPDATE players 
     SET Score = CASE 
         WHEN iAddedPoints < 0 AND Score < ABS(iAddedPoints) THEN 0 
         ELSE Score + iAddedPoints 

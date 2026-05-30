@@ -3,8 +3,6 @@
 
 NetworkManager::NetworkManager()
     : m_isConnected(false)
-    , m_udpSocketReady(false)
-    , listener(nullptr)
 {
 }
 
@@ -102,6 +100,23 @@ void NetworkManager::AddConnection(const std::string& ip, unsigned short port)
     }
 }
 
+std::vector<sf::Packet> NetworkManager::ReceivePeerPackets()
+{
+    std::vector<sf::Packet> packets;
+    for (int i = 0; i < (int)m_gameConnections.size(); i++)
+    {
+        sf::Packet packet;
+        sf::Socket::Status status = m_gameConnections[i]->receive(packet);
+        while (status == sf::Socket::Status::Done)
+        {
+            packets.push_back(packet);
+            packet.clear();
+            status = m_gameConnections[i]->receive(packet);
+        }
+    }
+    return packets;
+}
+
 void NetworkManager::SendToAllConnections(sf::Packet& packet)
 {
     for (auto& sock : m_gameConnections)
@@ -139,45 +154,7 @@ void NetworkManager::ClearConnections()
         listener = nullptr;
     }
 
-    if (m_udpSocketReady)
-    {
-        m_udpSocket.unbind();
-        m_udpSocketReady = false;
-    }
-
     std::cout << "[CLIENT] Conexiones P2P y listener cerrados." << std::endl;
-}
-
-bool NetworkManager::SendUdpHelloReady()
-{
-    auto ip = sf::IpAddress::resolve(m_clientState.gameServerIp);
-    sf::IpAddress gameServerIp = ip.value();
-
-    if (!m_udpSocketReady)
-    {
-        // puerto libre
-        m_udpSocket.bind(sf::Socket::AnyPort);
-        m_udpSocket.setBlocking(false);
-        m_udpSocketReady = true;
-    }
-
-    UdpHelloData helloData;
-    helloData.roomId = m_clientState.currentRoomId;
-    helloData.playerId = m_clientState.playerId;
-
-    sf::Packet packet;
-    packet << PacketType::UDP_HELLO << helloData;
-
-    m_udpSocket.send(packet, gameServerIp, m_clientState.gameServerUdpPort);
-
-    std::cout << "[CLIENT-UDP] hello -> "
-        << m_clientState.gameServerIp << ":" 
-        << m_clientState.gameServerUdpPort 
-        << " puerto local "
-        << m_udpSocket.getLocalPort()
-        << std::endl;
-
-    return true;
 }
 
 bool NetworkManager::Connect(const sf::IpAddress& serverIp, unsigned short serverPort)
@@ -271,63 +248,6 @@ void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::s
     }
 }
 
-bool NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort)
-{
-    if (!m_isConnected)
-    {
-        std::cerr << "[CLIENT] No se puede enviar MATCHMAKING_REQUEST: no hay conexion." << std::endl;
-        return false;
-    }
-
-    const std::string queueId = ranked ? "__queue_ranked" : "__queue_normal";
-    sf::Packet packet;
-
-    CreateRoomRequestData requestData;
-    requestData.roomId = queueId;
-    requestData.username = nickname;
-    requestData.gamePort = gamePort;
-
-    packet << static_cast<short>(PacketType::CREATE_ROOM_REQUEST);
-    packet << requestData;
-
-    if (m_socket.send(packet) != sf::Socket::Status::Done)
-    {
-        std::cerr << "[CLIENT] Error al enviar MATCHMAKING_REQUEST." << std::endl;
-        return false;
-    }
-
-    m_clientState.isSearchingMatch = true;
-    m_clientState.searchingRanked = ranked;
-    m_clientState.isWaitingInRoom = false;
-    m_clientState.currentRoomId = queueId;
-    m_clientState.roomPlayers.clear();
-
-    return true;
-}
-
-bool NetworkManager::SendCancelMatchmakingRequest()
-{
-    if (!m_isConnected)
-    {
-        return false;
-    }
-
-    sf::Packet packet;
-    packet << static_cast<short>(PacketType::DISCONNECT);
-
-    if (m_socket.send(packet) != sf::Socket::Status::Done)
-    {
-        return false;
-    }
-
-    m_clientState.isSearchingMatch = false;
-    m_clientState.searchingRanked = false;
-    m_clientState.isWaitingInRoom = false;
-    m_clientState.currentRoomId.clear();
-    m_clientState.roomPlayers.clear();
-
-    return true;
-}
 
 
 bool NetworkManager::IsConnected() const
@@ -395,89 +315,39 @@ void NetworkManager::SendToServer(sf::Packet& packet)
     m_socket.send(packet);
 }
 
-bool NetworkManager::SendLoginRequest(const std::string& username, const std::string& password)
+void NetworkManager::SendLoginRequest(const std::string& username, const std::string& password)
 {
-    if (!m_isConnected)
-    {
-        m_clientState.authMessage = "No hay conexion con el servidor.";
-        m_clientState.authMessageIsError = true;
-        std::cerr << "[CLIENT] No se puede enviar LOGIN_REQUEST: no hay conexion." << std::endl;
-        return false;
-    }
-
     LoginRequestData loginRequestData;
     loginRequestData.username = username;
     loginRequestData.password = password;
-
+    //std::cout << "SendingLogin";
     sf::Packet packet;
     packet << static_cast<short>(PacketType::LOGIN_REQUEST);
     packet << loginRequestData;
-
-    if (m_socket.send(packet) != sf::Socket::Status::Done)
-    {
-        m_clientState.authMessage = "Error enviando login.";
-        m_clientState.authMessageIsError = true;
-        return false;
-    }
-
-    return true;
+    m_socket.send(packet);
 }
 
-bool NetworkManager::SendRegisterRequest(const std::string& username, const std::string& password)
+void NetworkManager::SendRegisterRequest(const std::string& username, const std::string& password)
 {
-    if (!m_isConnected)
-    {
-        m_clientState.authMessage = "No hay conexion con el servidor.";
-        m_clientState.authMessageIsError = true;
-        std::cerr << "[CLIENT] No se puede enviar REGISTER_REQUEST: no hay conexion." << std::endl;
-        return false;
-    }
-
     RegisterRequestData registerRequestData;
     registerRequestData.username = username;
     registerRequestData.password = password;
-
+    //std::cout << "SendingRegister";
     sf::Packet packet;
     packet << static_cast<short>(PacketType::REGISTER_REQUEST);
     packet << registerRequestData;
-
-    if (m_socket.send(packet) != sf::Socket::Status::Done)
-    {
-        m_clientState.authMessage = "Error enviando registro.";
-        m_clientState.authMessageIsError = true;
-        return false;
-    }
-
-    return true;
+    m_socket.send(packet);
 }
 
-bool NetworkManager::SendRankingRequest(const std::string& username)
+void NetworkManager::SendRankingRequest(const std::string& username)
 {
-    if (!m_isConnected)
-    {
-        m_clientState.rankingLoading = false;
-        m_clientState.rankingReceived = true;
-        m_clientState.rankingMessage = "No hay conexion con el servidor.";
-        m_clientState.rankingMessageIsError = true;
-        return false;
-    }
-
     RankingRequestData requestData;
     requestData.username = username;
 
     sf::Packet packet;
     packet << static_cast<short>(PacketType::RANKING_REQUEST);
     packet << requestData;
-    if (m_socket.send(packet) != sf::Socket::Status::Done)
-    {
-        m_clientState.rankingLoading = false;
-        m_clientState.rankingReceived = true;
-        m_clientState.rankingMessage = "Error pidiendo ranking.";
-        m_clientState.rankingMessageIsError = true;
-        return false;
-    }
-
-    return true;
+    m_socket.send(packet);
 }
 
 void NetworkManager::NotifyPlayerWin(const std::string& username)
@@ -503,14 +373,6 @@ void NetworkManager::HandleCreateRoomResponse(sf::Packet& packet)
         m_clientState.isWaitingInRoom = true;
         m_clientState.hasGameStarted = false;
     }
-    else
-    {
-        m_clientState.isSearchingMatch = false;
-        m_clientState.searchingRanked = false;
-        m_clientState.isWaitingInRoom = false;
-        m_clientState.currentRoomId.clear();
-        m_clientState.roomPlayers.clear();
-    }
 }
 
 void NetworkManager::HandleJoinRoomResponse(sf::Packet& packet)
@@ -528,14 +390,6 @@ void NetworkManager::HandleJoinRoomResponse(sf::Packet& packet)
         m_clientState.isHost = false;
         m_clientState.isWaitingInRoom = true;
         m_clientState.hasGameStarted = false;
-    }
-    else
-    {
-        m_clientState.isSearchingMatch = false;
-        m_clientState.searchingRanked = false;
-        m_clientState.isWaitingInRoom = false;
-        m_clientState.currentRoomId.clear();
-        m_clientState.roomPlayers.clear();
     }
 }
 
@@ -555,7 +409,6 @@ void NetworkManager::HandleRoomStatusUpdate(sf::Packet& packet)
     m_clientState.currentRoomId = roomData.roomId;
     m_clientState.roomPlayers = roomData.players;
     m_clientState.isWaitingInRoom = true;
-    m_clientState.isSearchingMatch = roomData.roomId.rfind("__queue_", 0) == 0;
 
     for (const LobbyPlayerInfo& player : roomData.players)
     {
@@ -576,20 +429,12 @@ void NetworkManager::HandleStartGame(sf::Packet& packet)
         << startData.roomId
         << " | Players: "
         << startData.playerCount
-        << " | GameServer UDP: "
-        << startData.gameServerIp
-        << ":"
-        << startData.gameServerUdpPort
         << std::endl;
 
     m_clientState.currentRoomId = startData.roomId;
     m_clientState.roomPlayers = startData.players;
-    m_clientState.gameServerIp = startData.gameServerIp;
-    m_clientState.gameServerUdpPort = startData.gameServerUdpPort;
     m_clientState.hasGameStarted = true;
     m_clientState.isWaitingInRoom = false;
-    m_clientState.isSearchingMatch = false;
-    m_clientState.searchingRanked = false;
 
     for (const LobbyPlayerInfo& player : startData.players)
     {
@@ -616,9 +461,6 @@ void NetworkManager::HandleLoginResponse(sf::Packet& packet)
 {
     LoginResponseData loginResponseData;
     packet >> loginResponseData;
-    m_clientState.authMessage = loginResponseData.message;
-    m_clientState.authMessageIsError = !loginResponseData.success;
-
     if (loginResponseData.success)
     {
         m_clientState.playerId = loginResponseData.playerId;
@@ -642,8 +484,6 @@ void NetworkManager::HandleRegisterResponse(sf::Packet& packet)
 {
     RegisterResponseData registerResponseData;
     packet >> registerResponseData;
-    m_clientState.authMessage = registerResponseData.message;
-    m_clientState.authMessageIsError = !registerResponseData.success;
 }
 
 void NetworkManager::HandleRankingResponse(sf::Packet& packet)
@@ -651,9 +491,5 @@ void NetworkManager::HandleRankingResponse(sf::Packet& packet)
     RankingResponseData responseData;
     packet >> responseData;
     m_clientState.ranking = responseData.entries;
-    m_clientState.rankingLoading = false;
-    m_clientState.rankingReceived = true;
-    m_clientState.rankingMessage = responseData.message;
-    m_clientState.rankingMessageIsError = !responseData.success;
     std::cout << "[CLIENT] Ranking recibido: " << responseData.entries.size() << " entradas" << std::endl;
 }

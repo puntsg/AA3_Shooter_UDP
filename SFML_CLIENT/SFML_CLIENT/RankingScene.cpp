@@ -11,7 +11,11 @@ RankingScene::RankingScene()
 void RankingScene::BuildUI()
 {
     backButton = std::make_unique<Button>(
-        200.f, 500.f, 400.f, 50.f, font
+        Config::Ranking::BACK_BUTTON_X,
+        Config::Ranking::BACK_BUTTON_Y,
+        Config::Ranking::BACK_BUTTON_W,
+        Config::Ranking::BACK_BUTTON_H,
+        font
     );
     backButton->SetText("Volver al Lobby");
     backButton->onClick = [this]() {
@@ -23,6 +27,9 @@ void RankingScene::OnEnter()
 {
     BuildUI();
     rankingData.clear();
+    NM.GetClientState().ResetRankingState();
+    NM.GetClientState().rankingLoading = true;
+    NM.GetClientState().rankingMessage = "Cargando ranking...";
     NM.SendRankingRequest(NM.GetClientState().nickname);
 }
 
@@ -35,8 +42,9 @@ void RankingScene::Update(float dt)
 {
     NM.NetworkFetch();
     auto& ranking = NM.GetClientState().ranking;
-    if (!ranking.empty() && rankingData.empty())
+    if (NM.GetClientState().rankingReceived)
     {
+        rankingData.clear();
         for (int i = 0; i < (int)ranking.size(); i++)
             rankingData.push_back({ ranking[i].playerName, ranking[i].score });
     }
@@ -65,6 +73,17 @@ void RankingScene::Render(sf::RenderWindow& window)
 
         yPos += Config::Ranking::SPACING_Y;
         position++;
+    }
+
+    const ClientState& state = NM.GetClientState();
+    if (rankingData.empty() && !state.rankingMessage.empty())
+    {
+        sf::Text messageText(font);
+        messageText.setCharacterSize(Config::UI::FONT_SIZE_NORMAL);
+        messageText.setPosition({ Config::Ranking::TEXT_X, Config::Ranking::TEXT_Y });
+        messageText.setString(state.rankingMessage);
+        messageText.setFillColor(state.rankingMessageIsError ? sf::Color::Red : sf::Color::White);
+        window.draw(messageText);
     }
 
     if (backButton) backButton->Draw(window);

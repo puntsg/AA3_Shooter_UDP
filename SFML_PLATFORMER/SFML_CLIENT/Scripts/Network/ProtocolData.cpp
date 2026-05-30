@@ -2,7 +2,7 @@
 
 sf::Packet& operator<<(sf::Packet& packet, const RankingResponseData& data)
 {
-    packet << data.success << data.message << static_cast<int>(data.entries.size());
+    packet << static_cast<int>(data.entries.size());
     for (int i = 0; i < (int)data.entries.size(); i++)
         packet << data.entries[i];
     return packet;
@@ -11,7 +11,7 @@ sf::Packet& operator<<(sf::Packet& packet, const RankingResponseData& data)
 sf::Packet& operator>>(sf::Packet& packet, RankingResponseData& data)
 {
     int count = 0;
-    packet >> data.success >> data.message >> count;
+    packet >> count;
     data.entries.resize(count);
     for (int i = 0; i < count; i++)
         packet >> data.entries[i];
@@ -88,9 +88,7 @@ sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data)
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data)
 {
     packet << data.roomId
-        << data.playerCount
-        << data.gameServerIp
-        << data.gameServerUdpPort;
+        << data.playerCount;
 
     packet << static_cast<int>(data.players.size());
     for (const LobbyPlayerInfo& player : data.players)
@@ -107,8 +105,6 @@ sf::Packet& operator>>(sf::Packet& packet, StartGameData& data)
 
     packet >> data.roomId
         >> data.playerCount
-        >> data.gameServerIp
-        >> data.gameServerUdpPort
         >> vectorSize;
 
     data.players.clear();
@@ -118,54 +114,6 @@ sf::Packet& operator>>(sf::Packet& packet, StartGameData& data)
     {
         packet >> data.players[i];
     }
-
-    return packet;
-}
-
-sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data)
-{
-    packet << data.roomId
-        << data.playerCount;
-
-    for (const LobbyPlayerInfo& player : data.players)
-    {
-        packet << player;
-    }
-
-    return packet;
-}
-
-sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data)
-{
-    packet >> data.roomId
-        >> data.playerCount;
-
-    data.players.clear();
-
-    for (int i = 0; i < data.playerCount; ++i)
-    {
-        LobbyPlayerInfo player;
-        packet >> player;
-        data.players.push_back(player);
-    }
-
-    return packet;
-}
-
-sf::Packet& operator<<(sf::Packet& packet, const SessionStartResponseData& data)
-{
-    packet << data.success
-        << data.roomId
-        << data.message;
-
-    return packet;
-}
-
-sf::Packet& operator>>(sf::Packet& packet, SessionStartResponseData& data)
-{
-    packet >> data.success
-        >> data.roomId
-        >> data.message;
 
     return packet;
 }

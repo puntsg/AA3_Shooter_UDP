@@ -25,4 +25,7 @@ public:
     void Render(sf::RenderWindow& window) override;
 
     void OnExit() override;
+
+    void SendPlayerData();
 };
+

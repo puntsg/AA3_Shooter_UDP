@@ -19,8 +19,6 @@ struct RankingRequestData
 
 struct RankingResponseData
 {
-    bool success = false;
-    std::string message;
     std::vector<RankingData> entries;
 };
 
@@ -105,6 +103,46 @@ struct JoinRoomResponseData
     std::string roomId;
     std::string message;
 };
+inline sf::Packet& operator<<(sf::Packet& packet, const sf::Vector2f& v)
+{
+    return packet << v.x << v.y;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, sf::Vector2f& v)
+{
+    return packet >> v.x >> v.y;
+}
+
+struct PlayerData {
+    int playerId = -1;
+    std::string username;
+    sf::Vector2f position;
+    bool flipped = false;
+    int health = 0;
+    int lifes = 0;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const PlayerData& data)
+{
+    return packet << data.playerId << data.username << data.position << data.flipped << data.health << data.lifes;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, PlayerData& data)
+{
+    return packet >> data.playerId >> data.username >> data.position >> data.flipped >> data.health >> data.lifes;
+}
+
+struct BulletData
+{
+    sf::Vector2f position;
+    bool flipped = false;
+    bool active = false;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const BulletData& data)
+{
+    return packet << data.position << data.flipped << data.active;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, BulletData& data)
+{
+    return packet >> data.position >> data.flipped >> data.active;
+}
 
 // Datos de Jugador dentro del Lobby
 struct LobbyPlayerInfo
@@ -130,8 +168,6 @@ struct StartGameData
 {
     std::string roomId;
     int playerCount = 0;
-    std::string gameServerIp;
-    unsigned short gameServerUdpPort = 0;
     std::vector<LobbyPlayerInfo> players;
 };
 
@@ -157,13 +193,6 @@ struct RankingUpdateData
 {
     std::string roomId;
     std::vector<int> placementOrder; // orden de jugadores
-};
-
-// hello udp
-struct UdpHelloData
-{
-    std::string roomId;
-    int playerId = -1;
 };
 
 // LobbyPlayerInfo
@@ -312,66 +341,12 @@ inline sf::Packet& operator>>(sf::Packet& packet, ErrorMessageData& data)
     return packet;
 }
 
-inline sf::Packet& operator<<(sf::Packet& packet, const UdpHelloData& data)
-{
-    packet << data.roomId << data.playerId;
-    return packet;
-}
-
-inline sf::Packet& operator>>(sf::Packet& packet, UdpHelloData& data)
-{
-    packet >> data.roomId >> data.playerId;
-    return packet;
-}
-
 
 sf::Packet& operator<<(sf::Packet& packet, const RoomStatusUpdateData& data);
 sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data);
 
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data);
 sf::Packet& operator>>(sf::Packet& packet, StartGameData& data);
-
-// Launcher / verificacion de mapa
-struct MapCheckData
-{
-    std::string version;
-};
-
-struct MapStatusData
-{
-    bool upToDate = false;
-};
-
-struct MapResponseData
-{
-    std::string version;
-    std::string mapContent;
-};
-
-inline sf::Packet& operator<<(sf::Packet& packet, const MapCheckData& data)
-{
-    return packet << data.version;
-}
-inline sf::Packet& operator>>(sf::Packet& packet, MapCheckData& data)
-{
-    return packet >> data.version;
-}
-inline sf::Packet& operator<<(sf::Packet& packet, const MapStatusData& data)
-{
-    return packet << data.upToDate;
-}
-inline sf::Packet& operator>>(sf::Packet& packet, MapStatusData& data)
-{
-    return packet >> data.upToDate;
-}
-inline sf::Packet& operator<<(sf::Packet& packet, const MapResponseData& data)
-{
-    return packet << data.version << data.mapContent;
-}
-inline sf::Packet& operator>>(sf::Packet& packet, MapResponseData& data)
-{
-    return packet >> data.version >> data.mapContent;
-}
 
 // RankingUpdateData
 inline sf::Packet& operator<<(sf::Packet& packet, const RankingUpdateData& data)

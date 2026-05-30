@@ -4,7 +4,7 @@
 #include <string>
 #include "Room.h"
 
-#define MAX_PLAYERS 4
+#define MAX_PLAYERS 2
 
 class RoomManager
 {

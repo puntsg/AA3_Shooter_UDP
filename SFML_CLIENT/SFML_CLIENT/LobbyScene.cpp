@@ -23,10 +23,10 @@ void LobbyScene::BuildUI()
         Config::Lobby::BUTTON_WIDTH, 
         Config::Lobby::BUTTON_HEIGHT, 
 		font);
-	createButton->SetText("Crear Sala");
+	createButton->SetText("Buscar amistosa");
 	createButton->onClick = [this]() 
         { 
-            AskCreateRoom(); 
+            AskNormalMatchmaking(); 
         };
 
     joinButton = std::make_unique<Button>(
@@ -35,11 +35,23 @@ void LobbyScene::BuildUI()
         Config::Lobby::BUTTON_WIDTH, 
 		Config::Lobby::BUTTON_HEIGHT,
 		font);
-	joinButton->SetText("Unirse a Sala");
+	joinButton->SetText("Buscar ranked");
     joinButton->onClick = [this]() 
         { 
-            AskJoinRoom(); 
+            AskRankedMatchmaking(); 
 		};
+
+    cancelButton = std::make_unique<Button>(
+        Config::Lobby::CREATE_BUTTON_X,
+        Config::Lobby::CREATE_BUTTON_Y + (Config::Lobby::BUTTON_HEIGHT + 10.f) * 2.f,
+        Config::Lobby::BUTTON_WIDTH,
+        Config::Lobby::BUTTON_HEIGHT,
+        font);
+    cancelButton->SetText("Cancelar");
+    cancelButton->onClick = [this]()
+        {
+            CancelMatchmaking();
+        };
 
     rankingButton = std::make_unique<Button>(
         Config::Lobby::RANKING_BUTTON_X, 
@@ -75,7 +87,7 @@ void LobbyScene::OnEnter()
 	state.myGamePort = myPort;
 
 	std::cout << "[Client] P2P port asigned: " << myPort << std::endl;
-	statusText = "Escribe ID de la sala y pulsa Crear o Unirse";
+	statusText = "Selecciona una cola para buscar partida";
 }
 
 void LobbyScene::HandleEvent(const sf::Event& event)
@@ -83,6 +95,7 @@ void LobbyScene::HandleEvent(const sf::Event& event)
     if (roomIdInput) roomIdInput->handleEvent(event);
     if (createButton) createButton->handleEvent(event);
     if (joinButton) joinButton->handleEvent(event);
+    if (cancelButton) cancelButton->handleEvent(event);
     if (rankingButton) rankingButton->handleEvent(event);
 
     if (event.is<sf::Event::KeyPressed>())
@@ -92,15 +105,72 @@ void LobbyScene::HandleEvent(const sf::Event& event)
 
         if (kpInfo->code == sf::Keyboard::Key::Enter)
         {
-			AskJoinRoom();
+			AskNormalMatchmaking();
         }
 
         if (kpInfo->code == sf::Keyboard::Key::Escape)
         {
-			statusText = "Saliendo del lobby...";
+			CancelMatchmaking();
         }
     }
 }
+
+void LobbyScene::AskNormalMatchmaking()
+{
+    auto& state = NM.GetClientState();
+    if (state.isSearchingMatch)
+    {
+        statusText = "Ya estas buscando partida.";
+        return;
+    }
+
+    if (!NM.SendMatchmakingRequest(false, state.nickname, state.myGamePort))
+    {
+        statusText = "No se pudo buscar partida amistosa.";
+        return;
+    }
+
+    statusText = "Buscando partida amistosa...";
+    std::cout << "[CLIENT] Matchmaking amistoso solicitado." << std::endl;
+}
+
+void LobbyScene::AskRankedMatchmaking()
+{
+    auto& state = NM.GetClientState();
+    if (state.isSearchingMatch)
+    {
+        statusText = "Ya estas buscando partida.";
+        return;
+    }
+
+    if (!NM.SendMatchmakingRequest(true, state.nickname, state.myGamePort))
+    {
+        statusText = "No se pudo buscar partida ranked.";
+        return;
+    }
+
+    statusText = "Buscando partida ranked...";
+    std::cout << "[CLIENT] Matchmaking ranked solicitado." << std::endl;
+}
+
+void LobbyScene::CancelMatchmaking()
+{
+    auto& state = NM.GetClientState();
+    if (!state.isSearchingMatch)
+    {
+        statusText = "No hay busqueda activa.";
+        return;
+    }
+
+    if (!NM.SendCancelMatchmakingRequest())
+    {
+        statusText = "No se pudo cancelar la busqueda.";
+        return;
+    }
+
+    statusText = "Busqueda cancelada.";
+}
+
 void LobbyScene::AskCreateRoom()
 {
     if (!roomIdInput) return;
@@ -152,7 +222,11 @@ void LobbyScene::Update(float dt)
         return;
     }
 
-    if (state.isWaitingInRoom)
+    if (state.isSearchingMatch)
+    {
+        statusText = state.searchingRanked ? "Buscando partida ranked..." : "Buscando partida amistosa...";
+    }
+    else if (state.isWaitingInRoom)
     {
         statusText = "Esperando jugadores en sala: " + state.currentRoomId;
     }
@@ -169,7 +243,7 @@ void LobbyScene::Render(sf::RenderWindow& window)
     sf::Text labelText(font);
     labelText.setCharacterSize(Config::UI::FONT_SIZE_MEDIUM);
     labelText.setPosition({ Config::Lobby::SUBTITLE_X, Config::Lobby::SUBTITLE_Y });
-    labelText.setString("ID de sala:");
+    labelText.setString("Matchmaking:");
     labelText.setFillColor(sf::Color::White);
 
     sf::Text status(font);
@@ -181,9 +255,9 @@ void LobbyScene::Render(sf::RenderWindow& window)
 	window.draw(titleText);
     window.draw(labelText);
 
-    if (roomIdInput) roomIdInput->Draw(window);
     if (createButton) createButton->Draw(window);
 	if (joinButton) joinButton->Draw(window);
+    if (cancelButton) cancelButton->Draw(window);
     if (rankingButton) rankingButton->Draw(window);
 
 	window.draw(status);

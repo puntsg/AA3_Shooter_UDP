@@ -1,6 +1,7 @@
 #include "GameScene.h"
 #include <iostream>
 #include "../Entities/SpriteRenderer.h"
+#include "../Network/NetworkManager.h"
 
 void GameScene::OnEnter()
 {
@@ -24,6 +25,20 @@ void GameScene::HandleEvent(const sf::Event& event) {
 void GameScene::Update(float dt)
 {
     p->Update(dt);
+    NM.NetworkFetch();
+
+    std::vector<sf::Packet> peerPackets = NM.ReceivePeerPackets();
+    for (int i = 0; i < (int)peerPackets.size(); i++)
+    {
+        PacketType pt = PacketType::NONE;
+        peerPackets[i] >> pt;
+        if (pt == PacketType::PLAYER_MOVES)
+        {
+            PlayerData data;
+            peerPackets[i] >> data;
+            std::cout << "[P2P] " << data.username << " pos(" << data.position.x << "," << data.position.y << ")" << std::endl;
+        }
+    }
 
     if (p->pendingBullet != nullptr) {
         bullets.push_back(p->pendingBullet);
@@ -86,6 +101,7 @@ void GameScene::Update(float dt)
                 }
             }
          }
+        SendPlayerData();
     }
 }
 
@@ -107,4 +123,20 @@ void GameScene::OnExit()
         delete bullets[i];
     bullets.clear();
     std::cout << "Saliendo de GameScene..." << std::endl;
+}
+
+void GameScene::SendPlayerData()
+{
+    PlayerData data;
+    data.playerId = NM.GetClientState().playerId;
+    data.username = NM.GetClientState().nickname;
+    data.position = p->GetTransform()->position;
+    data.flipped  = p->animRenderer->flipped;
+    data.health   = 0;
+    data.lifes    = 0;
+
+    sf::Packet packet;
+    packet << static_cast<short>(PacketType::PLAYER_MOVES) << data;
+    NM.SendToServer(packet);
+    NM.SendToAllConnections(packet);
 }
