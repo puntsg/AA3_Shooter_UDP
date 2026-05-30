@@ -249,13 +249,6 @@ struct RankingUpdateData
     std::vector<int> placementOrder; // orden de jugadores
 };
 
-// hello udp
-struct UdpHelloData
-{
-    std::string roomId;
-    int playerId = -1;
-};
-
 // LobbyPlayerInfo
 inline sf::Packet& operator<<(sf::Packet& packet, const LobbyPlayerInfo& data)
 {
@@ -401,19 +394,6 @@ inline sf::Packet& operator>>(sf::Packet& packet, ErrorMessageData& data)
     packet >> data.message;
     return packet;
 }
-
-inline sf::Packet& operator<<(sf::Packet& packet, const UdpHelloData& data)
-{
-    packet << data.roomId << data.playerId;
-    return packet;
-}
-
-inline sf::Packet& operator>>(sf::Packet& packet, UdpHelloData& data)
-{
-    packet >> data.roomId >> data.playerId;
-    return packet;
-}
-
 
 sf::Packet& operator<<(sf::Packet& packet, const RoomStatusUpdateData& data);
 sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data);

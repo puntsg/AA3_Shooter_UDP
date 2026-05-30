@@ -57,9 +57,12 @@ enum PacketType
 	//Generico
 	ERROR_MESSAGE,
 
-	//Server TCP -> Game Server
+	//Server TCP to Game Server
 	SESSION_START_REQUEST = 100,
-	SESSION_START_RESPONSE = 101
+	SESSION_START_RESPONSE = 101,
+
+	// UDP
+	UDP_HELLO = 102
 };
 
 inline sf::Packet& operator <<(sf::Packet& packet, const PacketType& type)

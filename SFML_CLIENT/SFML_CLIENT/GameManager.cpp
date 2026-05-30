@@ -1,425 +1,505 @@
-﻿#include "GameManager.h"
+#include "GameManager.h"
 #include "NetworkManager.h"
-#include <string>
-#include <algorithm>
 #include "Constants.h"
+#include <fstream>
+#include <iostream>
+#include <algorithm>
+#include <cmath>
 
-GameManager::GameManager()
+GameManager::GameManager() {}
+
+void GameManager::InitGame(const std::vector<LobbyPlayerInfo>& players, int localDbId)
 {
-    grid.assign(Config::Game::GRID_COLUMNS, std::vector<short>(Config::Game::GRID_ROWS, 0));
+    m_localDbId = localDbId;
+    m_myLocalId = -1;
 
-    if (!font.openFromFile("C:\\Windows\\Fonts\\arial.ttf"))
+    // Config jugador local azul y rival rojo
+    m_local = PlayerVisual();
+    m_rival = PlayerVisual();
+
+    for (const LobbyPlayerInfo& p : players)
     {
-        std::cerr << "Warning: Arial font not found." << std::endl;
-    }
-}
-
-void GameManager::InitGame(const std::vector<Player>& connectedPlayers, int localID)
-{
-
-    // Reset board
-    grid.assign(Config::Game::GRID_COLUMNS, std::vector<short>(Config::Game::GRID_ROWS, 0));
-
-    // Save players 
-    players = connectedPlayers;
-    localPlayerID = localID;
-
-    // Assign colors
-    for (size_t i = 0; i < players.size() && i < 4; ++i)
-    {
-        players[i].color = Config::Game::PLAYER_COLORS[i];
-    }
-
-    currentTurnIndex = 0;
-    turnTimer = Config::Game::MAX_TURN_TIME;
-    victoryOrder.clear();
-    isGameOver = false;
-
-    std::cout << "--- Game Started (P2P) ---" << std::endl;
-    std::cout << "My ID: " << localPlayerID << std::endl;
-    for (const auto& p : players)
-    {
-        std::cout << "Player: " << p.nickName << " (ID: " << p.id << ")" << std::endl;
-    }
-}
-
-void GameManager::Update(float dt)
-{
-    if (isGameOver) return;
-    if (players.empty()) return;
-
-    // Read packets
-    ReceiveNetworkMoves();
-
-    if (isGameOver || players.empty()) return;
-
-    // Simple turn timer logic
-    turnTimer -= dt;
-    if (turnTimer <= 0.0f)
-    {
-        std::cout << "Time out for " << players[currentTurnIndex].nickName << std::endl;
-        AdvanceTurn();
-    }
-}
-
-void GameManager::ReceiveNetworkMoves()
-{
-    auto& connections = NM.GetConnections();
-    for (auto& sock : connections)
-    {
-        if (!sock) continue;
-
-        sf::Packet packet;
-        sf::Socket::Status status = sock->receive(packet);
-
-        if (status == sf::Socket::Status::Done)
+        if (p.playerId == localDbId)
         {
-            int packetType = -1;
-            packet >> packetType;
-
-            if (packetType == PacketType::PIECEADDED)
-            {
-                int senderID = 0;
-                int gx = 0, gy = 0;
-                packet >> senderID >> gx >> gy;
-
-                // Find who sent it
-                int playerIdx = -1;
-                for (int i = 0; i < (int)players.size(); i++)
-                {
-                    if (players[i].id == senderID) {
-                        playerIdx = i;
-                        break;
-                    }
-                }
-
-                if (playerIdx != -1)
-                {
-                    std::cout << "Move from " << players[playerIdx].nickName << " at " << gx << "," << gy << std::endl;
-                    TryPlacePieceGrid(gx, gy, playerIdx);
-                }
-            }
-            else if (packetType == PacketType::PLAYER_DISCONNECTED)
-            {
-                int disconnectedID = 0;
-                packet >> disconnectedID;
-                
-                for (int i = 0; i < (int)players.size(); i++)
-                {
-                    if (players[i].id == disconnectedID && !players[i].isSpectator)
-                    {
-                        players[i].isSpectator = true;
-                        std::cout << players[i].nickName << " disconnected (notified by peer)" << std::endl;
-                        if (i == currentTurnIndex) AdvanceTurn();
-                        break;
-                    }
-                }
-                CheckGameOver();
-            }
-            else if (packetType == PacketType::NEXT_TURN)
-            {
-                int nextID = 0;
-                packet >> nextID;
-                SyncNextTurn(nextID);
-            }
+            m_local.dbId     = p.playerId;
+            m_local.nickname = p.username;
+            m_local.shape.setSize({ PLAYER_W, PLAYER_H });
+            m_local.shape.setFillColor(sf::Color::Cyan);
         }
-        else if (status == sf::Socket::Status::Disconnected || status == sf::Socket::Status::Error)
+        else
         {
-            HandlePeerDisconnection(sock.get());
+            m_rival.dbId     = p.playerId;
+            m_rival.nickname = p.username;
+            m_rival.shape.setSize({ PLAYER_W, PLAYER_H });
+            m_rival.shape.setFillColor(sf::Color::Red);
         }
     }
+
+    // Pos iniciales
+    m_local.position = { 300.f, 200.f };
+    m_rival.position = { 500.f, 200.f };
+    m_local.health = MAX_HEALTH;   m_local.lifes = MAX_LIFES;
+    m_rival.health = MAX_HEALTH;   m_rival.lifes = MAX_LIFES;
+
+    LoadMap();
+
+    if (!m_font.openFromFile(Config::Assets::FONT_PATH))
+        m_font.openFromFile(Config::Assets::FONT_PATH_FALLBACK);
+
+    m_soundLoaded = m_tauntBuffer.loadFromFile(TAUNT_SOUND);
+    if (m_soundLoaded)
+        m_tauntSound.setBuffer(m_tauntBuffer);
+
+    m_gameOver  = false;
+    m_localWon  = false;
+    m_sendTimer = 0.f;
+    m_packetSeqId = 0;
+    m_bullets.clear();
+    std::cout << "[GameManager] Partida iniciada. Local: " << m_local.nickname
+              << " vs " << m_rival.nickname << std::endl;
 }
 
-void GameManager::HandlePeerDisconnection(sf::TcpSocket* socket)
+void GameManager::LoadMap()
 {
-    int playerIdx = GetPlayerIndexBySocket(socket);
-    if (playerIdx == -1) return;
-
-    Player& p = players[playerIdx];
-    if (p.isSpectator) return;
-
-    std::cout << p.nickName << " disconnected. Kicking them out." << std::endl;
-    p.isSpectator = true;
-
-    sf::Packet notify;
-    notify << (int)PacketType::PLAYER_DISCONNECTED << p.id;
-    NM.SendToAllConnections(notify);
-
-    if (playerIdx == currentTurnIndex) AdvanceTurn();
-    CheckGameOver();
-}
-
-int GameManager::GetPlayerIndexBySocket(sf::TcpSocket* socket) const
-{
-    auto& connections = NM.GetConnections();
-    int connIdx = 0;
-    for (int i = 0; i < (int)players.size(); i++)
+    std::string mapPath = FALLBACK_MAP;
+    std::ifstream versionFile(VERSION_FILE);
+    if (versionFile.is_open())
     {
-        if (players[i].id == localPlayerID) continue;
-        if (connIdx < (int)connections.size() && connections[connIdx].get() == socket) return i;
-        connIdx++;
+        std::string filename;
+        std::getline(versionFile, filename);
+        if (!filename.empty())
+            mapPath = "maps/" + filename;
     }
-    return -1;
-}
 
-void GameManager::BroadcastMove(int gx, int gy, int playerID)
-{
-    sf::Packet packet;
-    packet << (int)PacketType::PIECEADDED << playerID << gx << gy;
-    NM.SendToAllConnections(packet);
-}
-
-void GameManager::BroadcastNextTurn(int nextPlayerID)
-{
-    sf::Packet packet;
-    packet << (int)PacketType::NEXT_TURN << nextPlayerID;
-    NM.SendToAllConnections(packet);
-}
-
-void GameManager::SyncNextTurn(int nextPlayerID)
-{
-    for (int i = 0; i < (int)players.size(); i++)
+    std::ifstream mapFile(mapPath);
+    if (!mapFile.is_open())
     {
-        if (players[i].id == nextPlayerID)
+        std::cerr << "[GameManager] No se pudo abrir el mapa: " << mapPath << std::endl;
+        return;
+    }
+
+    m_mapRows.clear();
+    m_tiles.clear();
+
+    std::string row;
+    int rowIdx = 0;
+    while (std::getline(mapFile, row))
+    {
+        m_mapRows.push_back(row);
+        for (int col = 0; col < static_cast<int>(row.size()); col++)
         {
-            if (currentTurnIndex != i)
+            if (row[col] == '#')
             {
-                currentTurnIndex = i;
-                turnTimer = Config::Game::MAX_TURN_TIME;
-                std::cout << "Network Sync: Turn passed to " << players[i].nickName << std::endl;
+                sf::RectangleShape tile({ TILE_SIZE, TILE_SIZE });
+                tile.setPosition({ col * TILE_SIZE, MAP_OFFSET_Y + rowIdx * TILE_SIZE });
+                tile.setFillColor(sf::Color(70, 70, 70));
+                tile.setOutlineColor(sf::Color(110, 110, 110));
+                tile.setOutlineThickness(1.f);
+                m_tiles.push_back(tile);
             }
+        }
+        rowIdx++;
+    }
+
+    m_mapColCount = m_mapRows.empty() ? 0 : static_cast<int>(m_mapRows[0].size());
+    m_mapRowCount = static_cast<int>(m_mapRows.size());
+    std::cout << "[GameManager] Mapa cargado: " << mapPath
+              << " (" << m_mapColCount << "x" << m_mapRowCount << ")" << std::endl;
+}
+
+
+void GameManager::HandleInput(const sf::Event& event)
+{
+    if (m_gameOver) return;
+
+    if (const auto* key = event.getIf<sf::Event::KeyPressed>())
+    {
+        switch (key->code)
+        {
+        case sf::Keyboard::Key::Left:
+        case sf::Keyboard::Key::A:
+            m_leftHeld = true;
+            break;
+        case sf::Keyboard::Key::Right:
+        case sf::Keyboard::Key::D:
+            m_rightHeld = true;
+            break;
+        case sf::Keyboard::Key::Space:
+        case sf::Keyboard::Key::W:
+        case sf::Keyboard::Key::Up:
+            if (m_local.onGround)
+            {
+                m_local.velocity.y = JUMP_FORCE;
+                m_local.onGround   = false;
+            }
+            break;
+        case sf::Keyboard::Key::F:
+            SendShoot();
+            break;
+        case sf::Keyboard::Key::T:
+            SendTaunt();
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (const auto* key = event.getIf<sf::Event::KeyReleased>())
+    {
+        switch (key->code)
+        {
+        case sf::Keyboard::Key::Left:
+        case sf::Keyboard::Key::A:
+            m_leftHeld = false;
+            break;
+        case sf::Keyboard::Key::Right:
+        case sf::Keyboard::Key::D:
+            m_rightHeld = false;
+            break;
+        default:
             break;
         }
     }
 }
 
-void GameManager::TryPlacePieceScreen(float mouseX, float mouseY)
+
+void GameManager::Update(float dt)
 {
-    if (isGameOver || players.empty()) return;
-    if (players[currentTurnIndex].id != localPlayerID) return;
+    if (m_gameOver) return;
 
-    float offsetX = (Config::Window::WIDTH - (Config::Game::GRID_COLUMNS * Config::Game::CELL_SIZE)) / 2.f;
-    float offsetY = (Config::Window::HEIGHT - (Config::Game::GRID_ROWS * Config::Game::CELL_SIZE)) / 2.f;
-
-    // Ignore clicks outside grid
-    if (mouseX < offsetX || mouseX > offsetX + (Config::Game::GRID_COLUMNS * Config::Game::CELL_SIZE) ||
-        mouseY < offsetY || mouseY > offsetY + (Config::Game::GRID_ROWS * Config::Game::CELL_SIZE)) return;
-
-    int gx = (int)((mouseX - offsetX) / Config::Game::CELL_SIZE);
-    int gy = (int)((mouseY - offsetY) / Config::Game::CELL_SIZE);
-
-    TryPlacePieceGrid(gx, gy, currentTurnIndex);
-}
-
-bool GameManager::TryPlacePieceGrid(int gx, int gy, int playerIndex)
-{
-    if (gx < 0 || gx >= Config::Game::GRID_COLUMNS || gy < 0 || gy >= Config::Game::GRID_ROWS) return false;
-    if (grid[gx][gy] != 0) return false;
-
-    int playerID = players[playerIndex].id;
-    grid[gx][gy] = (short)playerID;
-
-    std::cout << ">>> " << players[playerIndex].nickName << " placed at " << gx << "," << gy << std::endl;
-
-    // Send to plaayers if it's my turn
-    if (playerID == localPlayerID) BroadcastMove(gx, gy, playerID);
-
-    if (CheckWin(gx, gy, playerID))
+    // Movimiento horizontal local
+    if (m_leftHeld)
     {
-        players[playerIndex].isSpectator = true;
-        victoryOrder.push_back(playerID);
-        std::cout << "!!! " << players[playerIndex].nickName << " WON!" << std::endl;
-        CheckGameOver();
+        m_local.velocity.x = -PLAYER_SPEED;
+        m_local.flipped    = true;
     }
-
-    if (!isGameOver) AdvanceTurn();
-    return true;
-}
-
-bool GameManager::CheckWin(int gx, int gy, int playerID)
-{
-    const int dirs[4][2][2] = {
-        {{-1, 0}, {1, 0}},  // Horiz
-        {{0, -1}, {0, 1}},  // Vert
-        {{-1,-1}, {1, 1}},  // Diag 
-        {{-1, 1}, {1,-1}}   // Diag
-    };
-
-    for (int d = 0; d < 4; d++) {
-        int count = 1;
-        for (int side = 0; side < 2; side++) {
-            int k = 1;
-            while (true) {
-                int nx = gx + dirs[d][side][0] * k;
-                int ny = gy + dirs[d][side][1] * k;
-                if (nx < 0 || nx >= Config::Game::GRID_COLUMNS || ny < 0 || ny >= Config::Game::GRID_ROWS) break;
-                if (grid[nx][ny] != playerID) break;
-                count++;
-                k++;
-            }
-        }
-        if (count >= 3) return true;
-    }
-    return false;
-}
-
-void GameManager::AdvanceTurn()
-{
-    // Check if board is full
-    bool boardFull = true;
-    for (int x = 0; x < Config::Game::GRID_COLUMNS; x++) {
-        for (int y = 0; y < Config::Game::GRID_ROWS; y++) {
-            if (grid[x][y] == 0) boardFull = false;
-        }
-    }
-
-    if (boardFull) {
-        std::cout << "Draw! Board is full." << std::endl;
-        CheckGameOver();
-        return;
-    }
-
-    // Move to next player that is not a spectator
-    int total = (int)players.size();
-    for (int i = 0; i < total; i++) {
-        currentTurnIndex = (currentTurnIndex + 1) % total;
-        if (!players[currentTurnIndex].isSpectator) {
-            turnTimer = Config::Game::MAX_TURN_TIME;
-            std::cout << "--- Turn: " << players[currentTurnIndex].nickName << " ---" << std::endl;
-
-           
-            BroadcastNextTurn(players[currentTurnIndex].id);
-            return;
-        }
-    }
-    CheckGameOver();
-}
-
-void GameManager::CheckGameOver()
-{
-    int spectators = 0;
-    for (const auto& p : players) if (p.isSpectator) spectators++;
-
-    bool boardFull = true;
-    for (int x = 0; x < Config::Game::GRID_COLUMNS; x++)
-        for (int y = 0; y < Config::Game::GRID_ROWS; y++)
-            if (grid[x][y] == 0) boardFull = false;
-
-    
-    if (spectators >= (int)players.size() - 1 || boardFull)
+    else if (m_rightHeld)
     {
-        std::cout << "=== GAME OVER ===" << std::endl;
-        isGameOver = true;
-        
-        GameResultData resultData;
-        for (int i = 0; i < players.size(); i++) {
-            Result r;
-            r.username = players[i].nickName;
-            r.scoredPoints = Config::Game::LOSE_GAME;
-            for (int j = 0; j < victoryOrder.size(); j++)
+        m_local.velocity.x = PLAYER_SPEED;
+        m_local.flipped    = false;
+    }
+    else
+    {
+        m_local.velocity.x = 0.f;
+    }
+
+    // Fisica del jugador local, prediccion cliente
+    ApplyPhysics(m_local, dt);
+
+    UpdateBullets(dt);
+
+    if (m_showTaunt)
+    {
+        m_tauntTimer -= dt;
+        if (m_tauntTimer <= 0.f)
+            m_showTaunt = false;
+    }
+
+    // Enviar transform al servidor cada x tiempo
+    m_sendTimer += dt;
+    if (m_sendTimer >= SEND_INTERVAL)
+    {
+        SendTransform();
+        m_sendTimer = 0.f;
+    }
+}
+
+void GameManager::ApplyPhysics(PlayerVisual& player, float dt)
+{
+    player.velocity.y += GRAVITY * dt;
+    player.position   += player.velocity * dt;
+    player.onGround    = false;
+    ResolveCollisions(player);
+}
+
+void GameManager::ResolveCollisions(PlayerVisual& player)
+{
+    sf::FloatRect pRect(player.position, { PLAYER_W, PLAYER_H });
+
+    for (int row = 0; row < m_mapRowCount; row++)
+    {
+        for (int col = 0; col < m_mapColCount; col++)
+        {
+            if (row >= static_cast<int>(m_mapRows.size()))  continue;
+            if (col >= static_cast<int>(m_mapRows[row].size())) continue;
+            if (m_mapRows[row][col] != '#') continue;
+
+            sf::FloatRect tRect(
+                { col * TILE_SIZE, row * TILE_SIZE },
+                { TILE_SIZE, TILE_SIZE }
+            );
+
+            if (!pRect.findIntersection(tRect)) continue;
+
+            float overlapL = (pRect.position.x + PLAYER_W) - tRect.position.x;
+            float overlapR = (tRect.position.x + TILE_SIZE) - pRect.position.x;
+            float overlapT = (pRect.position.y + PLAYER_H) - tRect.position.y;
+            float overlapB = (tRect.position.y + TILE_SIZE) - pRect.position.y;
+
+            float minH = std::min(overlapL, overlapR);
+            float minV = std::min(overlapT, overlapB);
+
+            if (minV <= minH)
             {
-                if (victoryOrder[j] == players[i].id) {
-                    r.scoredPoints = Config::Game::WIN_GAME;
-                    break;
+                if (overlapT < overlapB)
+                {
+                    player.position.y -= overlapT;
+                    player.velocity.y  = 0.f;
+                    player.onGround    = true;
+                }
+                else
+                {
+                    player.position.y += overlapB;
+                    player.velocity.y  = 0.f;
                 }
             }
-            resultData.results.push_back(r);
-        }
+            else
+            {
+                if (overlapL < overlapR)
+                    player.position.x -= overlapL;
+                else
+                    player.position.x += overlapR;
+                player.velocity.x = 0.f;
+            }
 
-        NM.ClearConnections();
-
-        // Reconnect to Bootstrap server
-        if (NM.ConnectToServer()) 
-        {
-            // Login save
-            std::string savedUser = NM.GetClientState().nickname;
-            std::string savedPass = NM.GetClientState().savedPassword;
-            NM.SendLoginRequest(savedUser, savedPass);
-            
-           
-            sf::Packet packet;
-            packet << static_cast<short>(PacketType::ENDGAME);
-            packet << resultData;
-            NM.SendToServer(packet);
-            
-            std::cout << "[CLIENT] Reconectado y ENDGAME enviado." << std::endl;
+            // Actualizar rect tras la correccion
+            pRect.position = player.position;
         }
-        else
-        {
-            std::cerr << "[CLIENT] Fallo al conectar despues de la partida." << std::endl;
-        }
-
-        NM.GetClientState().hasPendingResult = false;
-        SM.SetNextScene("LobbyScene");
     }
 }
 
-void GameManager::DrawGrid(sf::RenderWindow& window)
+void GameManager::UpdateBullets(float dt)
 {
-    float offsetX = (800.f - (Config::Game::GRID_COLUMNS * Config::Game::CELL_SIZE)) / 2.f;
-    float offsetY = (600.f - (Config::Game::GRID_ROWS * Config::Game::CELL_SIZE)) / 2.f;
+    for (Bullet& b : m_bullets)
+    {
+        float delta     = BULLET_SPEED * dt;
+        b.position.x   += b.direction * delta;
+        b.traveled     += delta;
 
-    for (int x = 0; x < Config::Game::GRID_COLUMNS; x++) {
-        for (int y = 0; y < Config::Game::GRID_ROWS; y++) {
-            sf::RectangleShape cell({ (float)Config::Game::CELL_SIZE - 2.f, (float)Config::Game::CELL_SIZE - 2.f });
-            cell.setPosition({ offsetX + (x * Config::Game::CELL_SIZE), offsetY + (y * Config::Game::CELL_SIZE) });
+        if (b.traveled >= BULLET_MAX_DIST) { b.active = false; continue; }
 
-            sf::Color color = sf::Color(50, 50, 50);
-            if (grid[x][y] != 0) {
-                for (const auto& p : players) {
-                    if (p.id == grid[x][y]) {
-                        color = p.color;
-                        break;
-                    }
-                }
-            }
-            cell.setFillColor(color);
-            window.draw(cell);
+        // Colision con tile del mapa 
+        int col = static_cast<int>(b.position.x / TILE_SIZE);
+        int row = static_cast<int>(b.position.y / TILE_SIZE);
+        if (row >= 0 && row < m_mapRowCount && col >= 0 && col < m_mapColCount
+            && m_mapRows[row][col] == '#')
+        {
+            b.active = false;
         }
+    }
+
+    m_bullets.erase(
+        std::remove_if(m_bullets.begin(), m_bullets.end(),
+            [](const Bullet& b) { return !b.active; }),
+        m_bullets.end()
+    );
+}
+
+
+void GameManager::SendTransform()
+{
+    TransformData data;
+    data.packetId      = ++m_packetSeqId;
+    data.dbId          = m_local.dbId;
+    data.localPlayerId = m_myLocalId;
+    data.x             = m_local.position.x;
+    data.y             = m_local.position.y;
+    data.flipped       = m_local.flipped;
+
+    sf::Packet packet;
+    packet << PacketType::TRANSFORM << data;
+    NM.SendUdp(packet);
+}
+
+void GameManager::SendShoot()
+{
+    // Crear bala local. solo local el daño update en el server
+    Bullet b;
+    float bx   = m_local.flipped ? m_local.position.x : m_local.position.x + PLAYER_W;
+    float by   = m_local.position.y + PLAYER_H * 0.5f;
+    b.position = { bx, by };
+    b.direction = m_local.flipped ? -1.f : 1.f;
+    b.fromLocal = true;
+    m_bullets.push_back(b);
+
+    sf::Packet packet;
+    packet << PacketType::SHOOT;
+    NM.SendUdp(packet);
+}
+
+void GameManager::SendTaunt()
+{
+    sf::Packet packet;
+    packet << PacketType::PLAYER_TAUNT;
+    NM.SendUdp(packet);
+}
+
+
+void GameManager::ApplyTransform(const TransformData& data)
+{
+    if (data.dbId == m_local.dbId)
+    {
+        // Aprender localId propio en el primer paquete
+        if (m_myLocalId == -1)
+            m_myLocalId = data.localPlayerId;
+
+        // Reconciliacion
+        float dx = std::abs(data.x - m_local.position.x);
+        float dy = std::abs(data.y - m_local.position.y);
+        if (dx > SNAP_THRESHOLD || dy > SNAP_THRESHOLD)
+        {
+            m_local.position = { data.x, data.y };
+            m_local.flipped  = data.flipped;
+            std::cout << "[GameManager] Reconciliacion aplicada." << std::endl;
+        }
+    }
+    else
+    {
+        // Actualizar pos del rival directamente
+        m_rival.position = { data.x, data.y };
+        m_rival.flipped  = data.flipped;
+    }
+}
+
+void GameManager::ApplyHit(const PlayerHitData& data)
+{
+    PlayerVisual& target = (data.targetPlayerId == m_local.dbId) ? m_local : m_rival;
+    target.health = data.newHealth;
+    target.lifes  = data.newLifes;
+
+    if (data.newHealth == MAX_HEALTH)
+    {
+        target.position = data.respawnPosition;
+        target.velocity = { 0.f, 0.f };
+    }
+}
+
+void GameManager::ApplyTaunt(int taunterDbId)
+{
+    const std::string& who = (taunterDbId == m_local.dbId)
+        ? m_local.nickname : m_rival.nickname;
+
+    m_tauntMsg   = who + " se esta burlando!";
+    m_showTaunt  = true;
+    m_tauntTimer = TAUNT_DURATION;
+
+    if (m_soundLoaded)
+        m_tauntSound.play();
+}
+
+void GameManager::SpawnRivalBullet(const ShootReplicateData& data)
+{
+    Bullet b;
+    b.position  = data.position;
+    b.direction = data.flipped ? -1.f : 1.f;
+    b.fromLocal = false;
+    m_bullets.push_back(b);
+}
+
+void GameManager::ApplyEndgame(const EndgameData& data)
+{
+    m_gameOver = true;
+    m_localWon = (data.winnerPlayerId == m_local.dbId);
+    std::cout << "[GameManager] Fin de partida. " << (m_localWon ? "Victoria!" : "Derrota.") << std::endl;
+}
+
+
+void GameManager::DrawGame(sf::RenderWindow& window)
+{
+    // Mapa
+    for (const sf::RectangleShape& tile : m_tiles)
+        window.draw(tile);
+
+    // Balas
+    sf::RectangleShape bulletShape({ BULLET_W, BULLET_H });
+    for (const Bullet& b : m_bullets)
+    {
+        bulletShape.setFillColor(b.fromLocal ? sf::Color::Yellow : sf::Color(255, 150, 0));
+        // Convertir pos de mundo a pantalla 
+        bulletShape.setPosition({ b.position.x, b.position.y + MAP_OFFSET_Y });
+        window.draw(bulletShape);
+    }
+
+    // Enemigo
+    m_rival.shape.setPosition({ m_rival.position.x, m_rival.position.y + MAP_OFFSET_Y });
+    window.draw(m_rival.shape);
+
+    // Jugador local
+    m_local.shape.setPosition({ m_local.position.x, m_local.position.y + MAP_OFFSET_Y });
+    window.draw(m_local.shape);
+
+    // Mensaje de taunt
+    if (m_showTaunt)
+    {
+        sf::Text tauntText(m_font, m_tauntMsg, 26);
+        tauntText.setFillColor(sf::Color::Yellow);
+        tauntText.setPosition({ 200.f, 280.f });
+        window.draw(tauntText);
+    }
+
+    // Pantalla de fin de partida
+    if (m_gameOver)
+    {
+        sf::Text endText(m_font, m_localWon ? "VICTORIA!" : "DERROTA...", 60);
+        endText.setFillColor(m_localWon ? sf::Color::Green : sf::Color::Red);
+        endText.setPosition({ 220.f, 240.f });
+        window.draw(endText);
+
+        sf::Text subText(m_font, "Volviendo al lobby...", 22);
+        subText.setFillColor(sf::Color::White);
+        subText.setPosition({ 270.f, 320.f });
+        window.draw(subText);
     }
 }
 
 void GameManager::DrawHUD(sf::RenderWindow& window)
 {
-    if (players.empty()) return;
+    // HUD fondo
+    sf::RectangleShape hudBg({ 800.f, MAP_OFFSET_Y - 4.f });
+    hudBg.setFillColor(sf::Color(20, 20, 20, 200));
+    hudBg.setPosition({ 0.f, 0.f });
+    window.draw(hudBg);
 
-    sf::Text text(font);
-    text.setCharacterSize(20);
-    text.setPosition({ 20.f, 20.f });
+    // Local (azul)
+    std::string localStr = m_local.nickname + "  HP:" + std::to_string(m_local.health)
+        + "  Vidas:" + std::to_string(m_local.lifes);
+    sf::Text localHud(m_font, localStr, 18);
+    localHud.setFillColor(sf::Color::Cyan);
+    localHud.setPosition({ 10.f, 18.f });
+    window.draw(localHud);
 
-    std::string str = "Turn: " + players[currentTurnIndex].nickName + "\n";
-    str += "Time: " + std::to_string((int)turnTimer) + "s";
-    if (players[currentTurnIndex].id == localPlayerID) str += " (YOUR TURN)";
+    // Rival (rojo)
+    std::string rivalStr = m_rival.nickname + "  HP:" + std::to_string(m_rival.health)
+        + "  Vidas:" + std::to_string(m_rival.lifes);
+    sf::Text rivalHud(m_font, rivalStr, 18);
+    rivalHud.setFillColor(sf::Color::Red);
+    rivalHud.setPosition({ 450.f, 18.f });
+    window.draw(rivalHud);
 
-    text.setString(str);
-    text.setFillColor(players[currentTurnIndex].color);
-    window.draw(text);
-
-    float yPos = 20.f;
-    for (const auto& p : players) {
-        sf::Text score(font);
-        score.setCharacterSize(16);
-        score.setPosition({ 600.f, yPos });
-
-        std::string scoreStr = p.nickName + ": " + std::to_string(p.scoreRanking);
-        if (p.isSpectator) scoreStr += " (ESP)";
-
-        score.setString(scoreStr);
-        score.setFillColor(p.color);
-        window.draw(score);
-
-        yPos += 25.f;
-    }
+    // Controles 
+    sf::Text controls(m_font, "A/D:Mover  W/Espacio:Saltar  F:Disparar  T:Taunt", 12);
+    controls.setFillColor(sf::Color(150, 150, 150));
+    controls.setPosition({ 180.f, 4.f });
+    window.draw(controls);
 }
+
+
+bool GameManager::IsGameOver()          const { return m_gameOver; }
+bool GameManager::IsLocalPlayerWinner() const { return m_localWon; }
 
 void GameManager::Reset()
 {
-    players.clear();
-    victoryOrder.clear();
-    grid.assign(Config::Game::GRID_COLUMNS, std::vector<short>(Config::Game::GRID_ROWS, 0));
-    isGameOver = false;
-    currentTurnIndex = 0;
-    turnTimer = Config::Game::MAX_TURN_TIME;
-    localPlayerID = -1;
-    std::cout << "[CLIENT] GameManager reseteado." << std::endl;
+    m_local       = PlayerVisual();
+    m_rival       = PlayerVisual();
+    m_bullets.clear();
+    m_gameOver    = false;
+    m_localWon    = false;
+    m_showTaunt   = false;
+    m_sendTimer   = 0.f;
+    m_packetSeqId = 0;
+    m_myLocalId   = -1;
+    m_leftHeld    = false;
+    m_rightHeld   = false;
+    m_mapRows.clear();
+    m_tiles.clear();
 }
