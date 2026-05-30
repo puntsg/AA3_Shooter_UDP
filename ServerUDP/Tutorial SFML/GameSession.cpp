@@ -2,9 +2,10 @@
 #include <iostream>
 #include <cmath>
 
-GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket)
+GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket, std::mutex& socketMutex)
     : roomId(roomId)
     , socket(socket)
+    , socketMutex(socketMutex)
     , finished(false)
     , bothReady(false)
 {
@@ -172,6 +173,7 @@ int GameSession::GetPlayerIdByAddress(const sf::IpAddress& ip, unsigned short po
 
 void GameSession::BroadcastGameState()
 {
+    std::lock_guard<std::mutex> lock(socketMutex);
     for (int i = 0; i < 2; i++)
     {
         TransformData tData;
@@ -193,12 +195,14 @@ void GameSession::BroadcastGameState()
 void GameSession::SendToPlayer(int playerId, sf::Packet& packet)
 {
     int idx = (playerIds[0] == playerId) ? 0 : 1;
+    std::lock_guard<std::mutex> lock(socketMutex);
     socket.send(packet, states[idx].ip, states[idx].port);
 }
 
 void GameSession::SendToOther(int playerId, sf::Packet& packet)
 {
     int idx = (playerIds[0] == playerId) ? 1 : 0;
+    std::lock_guard<std::mutex> lock(socketMutex);
     socket.send(packet, states[idx].ip, states[idx].port);
 }
 
@@ -229,8 +233,11 @@ void GameSession::HandleHit(int shooterPlayerId)
     sf::Packet hitPacket;
     hitPacket << PacketType::PLAYER_HIT << hitData;
 
-    socket.send(hitPacket, states[0].ip, states[0].port);
-    socket.send(hitPacket, states[1].ip, states[1].port);
+    {
+        std::lock_guard<std::mutex> lock(socketMutex);
+        socket.send(hitPacket, states[0].ip, states[0].port);
+        socket.send(hitPacket, states[1].ip, states[1].port);
+    }
 }
 
 void GameSession::RespawnPlayer(int playerId)
@@ -268,8 +275,11 @@ void GameSession::FinishGame(int winnerPlayerId, bool cheating)
     sf::Packet endPacket;
     endPacket << PacketType::ENDGAME << endData;
 
-    socket.send(endPacket, states[0].ip, states[0].port);
-    socket.send(endPacket, states[1].ip, states[1].port);
+    {
+        std::lock_guard<std::mutex> lock(socketMutex);
+        socket.send(endPacket, states[0].ip, states[0].port);
+        socket.send(endPacket, states[1].ip, states[1].port);
+    }
 
     std::cout << "Room " << roomId << " finishe. Winner: " << winnerPlayerId << std::endl;
 }

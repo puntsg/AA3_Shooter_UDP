@@ -36,6 +36,7 @@ private:
 
     sf::TcpListener tcpListener;
     sf::UdpSocket udpSocket;
+    std::mutex udpSocketMutex;  // protege udpSocket entre UdpReceiveLoop y UpdateLoop
 
     std::map<std::string, std::shared_ptr<GameSession>> sessions;
     std::mutex sessionsMutex;
