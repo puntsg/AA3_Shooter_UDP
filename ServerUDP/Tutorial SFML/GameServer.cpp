@@ -71,13 +71,12 @@ void GameServer::TcpListenerLoop()
             PacketType type = NONE;
             packet >> type;
 
-            // esto lo manda el server de matchmaking al encontrar 2 players
+            // viene del matchmaking
             if (type == SESSION_START_REQUEST)
             {
                 SessionStartResponseData response;
                 HandleSessionStart(packet, response);
 
-                // contestamos OK/FAIL para que no mande START_GAME a lo loco
                 sf::Packet responsePacket;
                 responsePacket << PacketType::SESSION_START_RESPONSE << response;
                 if (bootstrapSocket.send(responsePacket) != sf::Socket::Status::Done)
@@ -104,7 +103,7 @@ void GameServer::UdpReceiveLoop()
 
             sf::IpAddress ip = senderIp.value();
 
-            // metemos el packet a procesar
+            // al threadpool
             pool.Enqueue([this, ip, senderPort, packet]() mutable
                 {
                     RouteUdpPacket(ip, senderPort, packet);
@@ -168,6 +167,33 @@ void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short se
 {
     PacketType type = NONE;
     packet >> type;
+
+    if (type == UDP_HELLO)
+    {
+        UdpHelloData helloData;
+        packet >> helloData;
+
+        GameSession* helloSession = nullptr;
+
+        for (std::pair<const std::string, std::shared_ptr<GameSession>>& pair : sessions)
+        {
+            if (pair.first == helloData.roomId)
+            {
+                helloSession = pair.second.get();
+                break;
+            }
+        }
+
+        if (helloSession == nullptr)
+        {
+            std::cout << "UDP_HELLO sala no encontrada: " << helloData.roomId << std::endl;
+            return;
+        }
+
+        helloSession->RegisterPlayerEndpoint(helloData.playerId, senderIp, senderPort);
+
+        return;
+    }
 
     std::shared_ptr<GameSession> session = nullptr;
     int playerId = -1;

@@ -34,7 +34,7 @@ enum PacketType
 	PLAYER_HIT,
 	PLAYER_TAUNT,
 
-	// Legacy temporal: el gameplay actual de Conecta3 lo usa mientras migramos a shooter.
+	// Conecta3 antiguo
 	PIECEADDED,
 	NEXT_TURN,
 
@@ -57,7 +57,7 @@ enum PacketType
 	//Generico
 	ERROR_MESSAGE,
 
-	//Comunicacion interna entre este server y el Game Server
+	//Server TCP -> Game Server
 	SESSION_START_REQUEST = 100,
 	SESSION_START_RESPONSE = 101
 };

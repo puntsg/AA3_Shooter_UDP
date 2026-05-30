@@ -12,7 +12,7 @@
 
 
 #define LISTENER_PORT 55000
-#define SERVER "127.0.0.1::3306"
+#define SERVER "tcp://127.0.0.1:3306"
 #define USERNAME "root"
 #define PASSWORD "enti"
 #define DATABASE "videogame"

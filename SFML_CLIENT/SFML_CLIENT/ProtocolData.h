@@ -130,6 +130,8 @@ struct StartGameData
 {
     std::string roomId;
     int playerCount = 0;
+    std::string gameServerIp;
+    unsigned short gameServerUdpPort = 0;
     std::vector<LobbyPlayerInfo> players;
 };
 
@@ -155,6 +157,13 @@ struct RankingUpdateData
 {
     std::string roomId;
     std::vector<int> placementOrder; // orden de jugadores
+};
+
+// hello udp
+struct UdpHelloData
+{
+    std::string roomId;
+    int playerId = -1;
 };
 
 // LobbyPlayerInfo
@@ -300,6 +309,18 @@ inline sf::Packet& operator<<(sf::Packet& packet, const ErrorMessageData& data)
 inline sf::Packet& operator>>(sf::Packet& packet, ErrorMessageData& data)
 {
     packet >> data.message;
+    return packet;
+}
+
+inline sf::Packet& operator<<(sf::Packet& packet, const UdpHelloData& data)
+{
+    packet << data.roomId << data.playerId;
+    return packet;
+}
+
+inline sf::Packet& operator>>(sf::Packet& packet, UdpHelloData& data)
+{
+    packet >> data.roomId >> data.playerId;
     return packet;
 }
 

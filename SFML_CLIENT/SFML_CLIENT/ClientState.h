@@ -23,6 +23,8 @@ struct ClientState
 
     // Estado de partida
     bool hasGameStarted = false;
+    std::string gameServerIp = "";
+    unsigned short gameServerUdpPort = 0;
 
     // Ranking pendiente al terminar partida P2P
     bool hasPendingResult = false;

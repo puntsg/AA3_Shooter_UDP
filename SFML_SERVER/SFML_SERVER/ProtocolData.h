@@ -130,10 +130,12 @@ struct StartGameData
 {
     std::string roomId;
     int playerCount = 0;
+    std::string gameServerIp;
+    unsigned short gameServerUdpPort = 0;
     std::vector<LobbyPlayerInfo> players;
 };
 
-// Datos que mandamos al Game Server cuando matchmaking encuentra partida
+// sala para el UDP
 struct SessionStartData
 {
     std::string roomId;
@@ -141,7 +143,7 @@ struct SessionStartData
     std::vector<LobbyPlayerInfo> players;
 };
 
-// Respuesta simple del Game Server para saber si ha creado la sala
+// respuesta del UDP
 struct SessionStartResponseData
 {
     bool success = false;

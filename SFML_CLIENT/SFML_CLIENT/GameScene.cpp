@@ -33,6 +33,15 @@ void GameScene::OnEnter()
 
     SetupGame(gamePlayers, state.playerId);
 
+    if (myIndex == -1)
+    {
+        std::cerr << "[CLIENT] No encuentro mi playerId en START_GAME." << std::endl;
+        return;
+    }
+
+    // hello al udp
+    NM.SendUdpHelloReady();
+
     // Iniciar listener P2P
     NM.StartP2PListener(state.roomPlayers[myIndex].gamePort);
 

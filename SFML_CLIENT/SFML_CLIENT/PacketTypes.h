@@ -34,7 +34,7 @@ enum PacketType
 	PLAYER_HIT,
 	PLAYER_TAUNT,
 
-	// Legacy temporal: el gameplay actual de Conecta3 lo usa mientras migramos a shooter.
+	// Conecta3 antiguo
 	PIECEADDED,
 	NEXT_TURN,
 
@@ -55,7 +55,10 @@ enum PacketType
 	PING,
 
 	//Generico
-	ERROR_MESSAGE
+	ERROR_MESSAGE,
+
+	// UDP
+	UDP_HELLO = 102
 };
 
 inline sf::Packet& operator <<(sf::Packet& packet, const PacketType& type)

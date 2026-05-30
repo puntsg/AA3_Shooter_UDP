@@ -8,6 +8,8 @@ void ClientState::ResetRoomState()
     isSearchingMatch = false;
     searchingRanked = false;
     hasGameStarted = false;
+    gameServerIp.clear();
+    gameServerUdpPort = 0;
     roomPlayers.clear();
 }
 

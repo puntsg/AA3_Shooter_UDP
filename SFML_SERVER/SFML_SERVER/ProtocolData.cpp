@@ -88,7 +88,9 @@ sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data)
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data)
 {
     packet << data.roomId
-        << data.playerCount;
+        << data.playerCount
+        << data.gameServerIp
+        << data.gameServerUdpPort;
 
     packet << static_cast<int>(data.players.size());
     for (const LobbyPlayerInfo& player : data.players)
@@ -105,6 +107,8 @@ sf::Packet& operator>>(sf::Packet& packet, StartGameData& data)
 
     packet >> data.roomId
         >> data.playerCount
+        >> data.gameServerIp
+        >> data.gameServerUdpPort
         >> vectorSize;
 
     data.players.clear();
@@ -123,7 +127,6 @@ sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data)
     packet << data.roomId
         << data.playerCount;
 
-    // Enviamos los players tal cual para que el Game Server sepa a quien esperar
     for (const LobbyPlayerInfo& player : data.players)
     {
         packet << player;
@@ -139,7 +142,6 @@ sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data)
 
     data.players.clear();
 
-    // playerCount marca cuantos LobbyPlayerInfo vienen despues
     for (int i = 0; i < data.playerCount; ++i)
     {
         LobbyPlayerInfo player;
