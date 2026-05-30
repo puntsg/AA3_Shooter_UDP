@@ -1,23 +1,32 @@
 #include "GameScene.h"
 #include "NetworkManager.h"
 #include "SceneManager.h"
+#include "SpriteRenderer.h"
 #include <iostream>
 
 void GameScene::OnEnter()
 {
-    std::cout << "[GameScene] Iniciando partida shooter..." << std::endl;
+    std::cout << "[GameScene] Iniciando partida platformer..." << std::endl;
 
-    const ClientState& state = NM.GetClientState();
-    m_gameManager.InitGame(state.roomPlayers, state.playerId);
+    localPlayer = new Player();
+    localPlayer->GetTransform()->position = sf::Vector2f(48.f, 48.f);
+
+    remotePlayer = new Player();
+    remotePlayer->GetTransform()->position = sf::Vector2f(200.f, 48.f);
+
+    tileMap = new TileMap();
+    tileMap->initMap("Tilemaps/Tilemap1.txt");
+
+    m_sendTimer     = 0.f;
+    m_packetSeqId   = 0;
     m_gameOverTimer = 0.f;
 
-    // Registrar endpoint
     NM.SendUdpHelloReady();
 }
 
 void GameScene::HandleEvent(const sf::Event& event)
 {
-    m_gameManager.HandleInput(event);
+    // Input handled inside Player::Update()
 }
 
 void GameScene::Update(float dt)
@@ -26,71 +35,190 @@ void GameScene::Update(float dt)
 
     ClientState& cs = NM.GetClientState();
 
+    // Apply remote player transforms from GameServer
     for (const TransformData& t : cs.incomingTransforms)
-        m_gameManager.ApplyTransform(t);
+    {
+        if (t.dbId != cs.playerId)
+        {
+            remotePlayer->GetTransform()->position = sf::Vector2f(t.x, t.y);
+            remotePlayer->animRenderer->flipped    = t.flipped;
+        }
+    }
+    cs.incomingTransforms.clear();
 
+    // Spawn bullet from rival when server notifies a shot
     if (cs.hasShootReplicate)
     {
-        m_gameManager.SpawnRivalBullet(cs.lastShootReplicate);
+        sf::Vector2f dir = cs.lastShootReplicate.flipped
+            ? sf::Vector2f(-1.f, 0.f)
+            : sf::Vector2f( 1.f, 0.f);
+        bullets.push_back(new Bullet(cs.lastShootReplicate.position, dir));
         cs.hasShootReplicate = false;
     }
 
-    if (cs.hasPlayerHit)
-    {
-        m_gameManager.ApplyHit(cs.lastPlayerHit);
-        cs.hasPlayerHit = false;
-    }
-
-    if (cs.hasTaunt)
-    {
-        m_gameManager.ApplyTaunt(cs.tauntPlayerId);
-        cs.hasTaunt = false;
-    }
-
+    // Endgame countdown
     if (cs.hasEndgame)
     {
-        m_gameManager.ApplyEndgame(cs.endgameData);
-        cs.hasEndgame = false;
+        cs.hasEndgame   = false;
+        m_gameOverTimer = 3.f;
     }
 
-    m_gameManager.Update(dt);
-
-    if (m_gameManager.IsGameOver())
+    if (m_gameOverTimer > 0.f)
     {
-        m_gameOverTimer += dt;
-        if (m_gameOverTimer >= 3.f)
+        m_gameOverTimer -= dt;
+        if (m_gameOverTimer <= 0.f)
             HandleGameEnd();
+        return;
     }
+
+    // Update local player (input + physics)
+    localPlayer->Update(dt);
+
+    // Forward any bullet the player just spawned
+    if (localPlayer->pendingBullet != nullptr)
+    {
+        bullets.push_back(localPlayer->pendingBullet);
+        localPlayer->pendingBullet = nullptr;
+
+        sf::Packet shootPacket;
+        shootPacket << PacketType::SHOOT;
+        NM.SendUdp(shootPacket);
+    }
+
+    // Update & cull bullets
+    for (int i = 0; i < (int)bullets.size(); i++)
+    {
+        bullets[i]->Update(dt);
+        bullets[i]->spriteRenderer->sprite->setPosition(bullets[i]->GetTransform()->position);
+
+        for (auto& row : tileMap->tileGrid)
+        {
+            for (Tile* tile : row)
+            {
+                if (!tile->hasCollision) continue;
+                SpriteRenderer* ts = dynamic_cast<SpriteRenderer*>(tile->GetRenderer());
+                if (!ts || !ts->sprite.has_value()) continue;
+                if (bullets[i]->spriteRenderer->sprite->getGlobalBounds()
+                        .findIntersection(ts->sprite->getGlobalBounds()))
+                    bullets[i]->active = false;
+            }
+        }
+    }
+
+    for (int i = (int)bullets.size() - 1; i >= 0; i--)
+    {
+        if (!bullets[i]->active)
+        {
+            delete bullets[i];
+            bullets.erase(bullets.begin() + i);
+        }
+    }
+
+    // Collision between local player and tilemap
+    ResolveCollisions(localPlayer);
+
+    // Keep remote player animation ticking
+    remotePlayer->animRenderer->Update(dt);
+
+    // Send transform to GameServer periodically
+    m_sendTimer += dt;
+    if (m_sendTimer >= SEND_INTERVAL)
+    {
+        SendTransform();
+        m_sendTimer = 0.f;
+    }
+}
+
+void GameScene::ResolveCollisions(Player* p)
+{
+    AnimatedRenderer* ar = p->animRenderer;
+    if (!ar || !ar->sprite.has_value()) return;
+
+    for (auto& row : tileMap->tileGrid)
+    {
+        for (Tile* tile : row)
+        {
+            if (!tile->hasCollision) continue;
+            SpriteRenderer* ts = dynamic_cast<SpriteRenderer*>(tile->GetRenderer());
+            if (!ts || !ts->sprite.has_value()) continue;
+
+            auto collision = ar->sprite->getGlobalBounds()
+                .findIntersection(ts->sprite->getGlobalBounds());
+            if (!collision.has_value()) continue;
+
+            if (collision->size.y < collision->size.x)
+            {
+                if (p->velocity.y > 0)
+                {
+                    p->GetTransform()->position.y -= collision->size.y;
+                    p->grounded = true;
+                }
+                else
+                    p->GetTransform()->position.y += collision->size.y;
+                p->velocity.y = 0.f;
+            }
+            else
+            {
+                if (p->velocity.x > 0)
+                    p->GetTransform()->position.x -= collision->size.x;
+                else
+                    p->GetTransform()->position.x += collision->size.x;
+                p->velocity.x = 0.f;
+            }
+
+            ar->sprite->setPosition(p->GetTransform()->position);
+        }
+    }
+}
+
+void GameScene::SendTransform()
+{
+    TransformData data;
+    data.packetId      = ++m_packetSeqId;
+    data.dbId          = NM.GetClientState().playerId;
+    data.localPlayerId = -1;
+    data.x             = localPlayer->GetTransform()->position.x;
+    data.y             = localPlayer->GetTransform()->position.y;
+    data.flipped       = localPlayer->animRenderer->flipped;
+
+    sf::Packet packet;
+    packet << PacketType::TRANSFORM << data;
+    NM.SendUdp(packet);
 }
 
 void GameScene::Render(sf::RenderWindow& window)
 {
-    m_gameManager.DrawGame(window);
-    m_gameManager.DrawHUD(window);
+    tileMap->render(window);
+
+    for (Bullet* b : bullets)
+        b->spriteRenderer->render(window);
+
+    remotePlayer->animRenderer->render(window);
+    localPlayer->animRenderer->render(window);
 }
 
 void GameScene::OnExit()
 {
     std::cout << "[GameScene] Saliendo de la partida." << std::endl;
+
+    delete localPlayer;  localPlayer  = nullptr;
+    delete remotePlayer; remotePlayer = nullptr;
+    delete tileMap;      tileMap      = nullptr;
+
+    for (Bullet* b : bullets) delete b;
+    bullets.clear();
+
     NM.ClearConnections();
-    m_gameManager.Reset();
 }
 
 void GameScene::HandleGameEnd()
 {
-    // Reconectar al servidor bootstrap para volver al lobby
     if (NM.ConnectToServer())
     {
         NM.SendLoginRequest(
             NM.GetClientState().nickname,
             NM.GetClientState().savedPassword
         );
-        std::cout << "[GameScene] Reconectado al servidor bootstrap." << std::endl;
     }
-    else
-    {
-        std::cerr << "[GameScene] No se pudo reconectar al servidor." << std::endl;
-    }
-
     SM.SetNextScene("LobbyScene");
 }
