@@ -78,6 +78,8 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
     sf::Packet replicatePacket;
     replicatePacket << PacketType::SHOOT_REPLICATE << replicateData;
     SendToOther(playerId, replicatePacket);
+
+    HandleHit(playerId);
 }
 
 void GameSession::ProcessTauntPacket(int playerId)
