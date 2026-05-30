@@ -47,6 +47,13 @@ public:
     std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections();
     void ClearConnections();
     bool SendUdpHelloReady();
+
+    // Envia paquete UDP al GameServer
+    void SendUdp(sf::Packet& packet);
+
+    // Procesa paquetes UDP pendientes al GS
+    void ReceiveUdpData();
+
     void SendToServer(sf::Packet& packet);
     bool SendLoginRequest(const std::string& username, const std::string& password);
     bool SendRegisterRequest(const std::string& username, const std::string& password);
@@ -67,6 +74,13 @@ private:
     void HandleLoginResponse(sf::Packet& packet);
     void HandleRegisterResponse(sf::Packet& packet);
     void HandleRankingResponse(sf::Packet& packet);
+
+    // Handlers UDP
+    void HandleTransform(sf::Packet& packet);
+    void HandleShootReplicate(sf::Packet& packet);
+    void HandlePlayerHit(sf::Packet& packet);
+    void HandlePlayerTaunt(sf::Packet& packet);
+    void HandleEndgame(sf::Packet& packet);
 
 
 

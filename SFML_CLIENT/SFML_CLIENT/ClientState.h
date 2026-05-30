@@ -38,6 +38,17 @@ struct ClientState
     bool rankingMessageIsError = false;
     std::string rankingMessage = "";
 
+    // Estado UDP del juego 
+    std::vector<TransformData>  incomingTransforms;  // ultima pos recibida por jugador
+    bool             hasShootReplicate = false;
+    ShootReplicateData lastShootReplicate;
+    bool             hasPlayerHit = false;
+    PlayerHitData    lastPlayerHit;
+    bool             hasTaunt = false;
+    int              tauntPlayerId = -1;
+    bool             hasEndgame = false;
+    EndgameData      endgameData;
+
     void ResetRoomState();
 
     void ResetAuthState();
