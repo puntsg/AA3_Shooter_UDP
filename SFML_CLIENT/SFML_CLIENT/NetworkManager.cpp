@@ -480,6 +480,103 @@ bool NetworkManager::SendRankingRequest(const std::string& username)
     return true;
 }
 
+void NetworkManager::SendUdp(sf::Packet& packet)
+{
+    if (!m_udpSocketReady)
+    {
+        std::cerr << "[CLIENT-UDP] Socket no listo para enviar." << std::endl;
+        return;
+    }
+
+    std::optional<sf::IpAddress> ip = sf::IpAddress::resolve(m_clientState.gameServerIp);
+    if (!ip.has_value())
+    {
+        std::cerr << "[CLIENT-UDP] IP del GameServer invalida." << std::endl;
+        return;
+    }
+
+    m_udpSocket.send(packet, *ip, m_clientState.gameServerUdpPort);
+}
+
+void NetworkManager::ReceiveUdpData()
+{
+    if (!m_udpSocketReady)
+        return;
+
+    sf::Packet packet;
+    std::optional<sf::IpAddress> senderIp;
+    unsigned short senderPort = 0;
+
+    while (m_udpSocket.receive(packet, senderIp, senderPort) == sf::Socket::Status::Done)
+    {
+        PacketType type = NONE;
+        packet >> type;
+
+        switch (type)
+        {
+        case PacketType::TRANSFORM:
+            HandleTransform(packet);
+            break;
+        case PacketType::SHOOT_REPLICATE:
+            HandleShootReplicate(packet);
+            break;
+        case PacketType::PLAYER_HIT:
+            HandlePlayerHit(packet);
+            break;
+        case PacketType::PLAYER_TAUNT:
+            HandlePlayerTaunt(packet);
+            break;
+        case PacketType::ENDGAME:
+            HandleEndgame(packet);
+            break;
+        default:
+            break;
+        }
+
+        packet.clear();
+    }
+}
+
+void NetworkManager::HandleTransform(sf::Packet& packet)
+{
+    TransformData data;
+    packet >> data;
+
+    for (TransformData& t : m_clientState.incomingTransforms)
+    {
+        if (t.localPlayerId == data.localPlayerId)
+        {
+            t = data;
+            return;
+        }
+    }
+    m_clientState.incomingTransforms.push_back(data);
+}
+
+void NetworkManager::HandleShootReplicate(sf::Packet& packet)
+{
+    packet >> m_clientState.lastShootReplicate;
+    m_clientState.hasShootReplicate = true;
+}
+
+void NetworkManager::HandlePlayerHit(sf::Packet& packet)
+{
+    packet >> m_clientState.lastPlayerHit;
+    m_clientState.hasPlayerHit = true;
+}
+
+void NetworkManager::HandlePlayerTaunt(sf::Packet& packet)
+{
+    packet >> m_clientState.tauntPlayerId;
+    m_clientState.hasTaunt = true;
+}
+
+void NetworkManager::HandleEndgame(sf::Packet& packet)
+{
+    packet >> m_clientState.endgameData;
+    m_clientState.hasEndgame = true;
+}
+
 void NetworkManager::NotifyPlayerWin(const std::string& username)
 {
     sf::Packet packet;
