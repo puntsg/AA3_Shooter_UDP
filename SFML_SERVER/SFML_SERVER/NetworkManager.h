@@ -4,10 +4,12 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <mutex>
 #include "ConnectedClient.h"
 #include "RoomManager.h"
 #include "PacketTypes.h"
 #include "ProtocolData.h"
+#include "ThreadPool.h"
 #define NM NetworkManager::Instance()
 
 class NetworkManager
@@ -24,6 +26,8 @@ public:
 
     bool Start(unsigned short listenPort);
     void Update();
+
+    void ProcessPacketFromPool(int playerId, sf::Packet packet);
 
 private:
     void AcceptNewClients();
@@ -67,11 +71,14 @@ private:
 
     void PrintConnectedClients() const;
 
-
 private:
     sf::TcpListener m_listener;
     bool m_isRunning;
     int m_nextPlayerId;
+
+    // Protege clientes, salas y colas de matchmaking cuando trabajan varios threads.
+    std::mutex m_stateMutex;
+
     std::vector<std::unique_ptr<sf::TcpSocket>> m_sockets;
     std::vector<ConnectedClient> m_clients;
     RoomManager m_roomManager;
@@ -79,4 +86,7 @@ private:
     std::vector<std::string> connectedUsers;
     std::vector<int> m_normalQueue;
     std::vector<int> m_rankedQueue;
+
+    // Thread pool sencillo para procesar paquetes del bootstrap server.
+    ThreadPool m_threadPool;
 };

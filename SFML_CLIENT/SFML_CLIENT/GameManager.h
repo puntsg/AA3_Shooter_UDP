@@ -3,6 +3,7 @@
 #include <SFML/Audio.hpp>
 #include <vector>
 #include <string>
+#include <optional>
 #include "ProtocolData.h"
 
 struct PlayerVisual
@@ -19,7 +20,7 @@ struct PlayerVisual
     sf::RectangleShape shape;
 };
 
-struct Bullet
+struct BulletData
 {
     sf::Vector2f position;
     float        direction = 1.f;  // 1 = derecha, -1 = izquierda
@@ -78,7 +79,7 @@ private:
     int          m_myLocalId = -1;  
 
     // Balas
-    std::vector<Bullet> m_bullets;
+    std::vector<BulletData> m_bullets;
 
     // Input
     bool m_leftHeld  = false;
@@ -101,9 +102,9 @@ private:
     sf::Font m_font;
 
     // Audio
-    sf::SoundBuffer m_tauntBuffer;
-    sf::Sound       m_tauntSound;
-    bool            m_soundLoaded = false;
+    sf::SoundBuffer         m_tauntBuffer;
+    std::optional<sf::Sound> m_tauntSound;
+    bool                    m_soundLoaded = false;
 
     // Constantes de juego
     static constexpr float TILE_SIZE        = 50.f;

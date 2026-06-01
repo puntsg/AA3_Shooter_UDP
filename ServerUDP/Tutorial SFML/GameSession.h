@@ -3,6 +3,7 @@
 #include <SFML/Network.hpp>
 #include <SFML/System.hpp>
 #include <string>
+#include <mutex>
 #include "ProtocolData.h"
 
 #define MAX_HEALTH 5
@@ -31,7 +32,7 @@ struct PlayerState
 class GameSession
 {
 public:
-    GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket);
+    GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket, std::mutex& socketMutex);
 
     void ProcessMovePacket(int playerId, sf::Packet& packet);
     void ProcessShotPacket(int playerId, sf::Packet& packet);
@@ -65,6 +66,7 @@ private:
     int playerIds[2];
     PlayerState states[2];
     sf::UdpSocket& socket;
+    std::mutex& socketMutex;  // mutex compartido para proteger udpSocket
     bool finished;
     bool bothReady;
     sf::Clock broadcastClock;

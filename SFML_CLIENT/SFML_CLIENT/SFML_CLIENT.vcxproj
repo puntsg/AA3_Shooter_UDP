@@ -135,28 +135,37 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AnimatedRenderer.cpp" />
+    <ClCompile Include="Bullet.cpp" />
     <ClCompile Include="Button.cpp" />
     <ClCompile Include="ClientState.cpp" />
     <ClCompile Include="Entity.cpp" />
     <ClCompile Include="GameManager.cpp" />
     <ClCompile Include="GameScene.cpp" />
+    <ClCompile Include="HealthBehaviour.cpp" />
     <ClCompile Include="InputField.cpp" />
     <ClCompile Include="LauncherManager.cpp" />
     <ClCompile Include="LobbyScene.cpp" />
     <ClCompile Include="LoginScene.cpp" />
     <ClCompile Include="NetworkManager.cpp" />
+    <ClCompile Include="Player.cpp" />
     <ClCompile Include="ProtocolData.cpp" />
     <ClCompile Include="RankingScene.cpp" />
     <ClCompile Include="SceneManager.cpp" />
     <ClCompile Include="Source.cpp" />
+    <ClCompile Include="SpriteRenderer.cpp" />
+    <ClCompile Include="TileMap.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AnimatedRenderer.h" />
+    <ClInclude Include="Bullet.h" />
     <ClInclude Include="Button.h" />
     <ClInclude Include="ClientState.h" />
     <ClInclude Include="Constants.h" />
     <ClInclude Include="Entity.h" />
     <ClInclude Include="GameManager.h" />
     <ClInclude Include="GameScene.h" />
+    <ClInclude Include="HealthBehaviour.h" />
     <ClInclude Include="InputField.h" />
     <ClInclude Include="LauncherManager.h" />
     <ClInclude Include="LobbyScene.h" />
@@ -169,8 +178,15 @@
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="SceneManager.h" />
+    <ClInclude Include="SpriteRenderer.h" />
+    <ClInclude Include="TileMap.h" />
     <ClInclude Include="Transform.h" />
     <ClInclude Include="UIElement.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Sprites\Bullet.png" />
+    <Image Include="Sprites\duck.png" />
+    <Image Include="Sprites\Tiles\Dirt.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
