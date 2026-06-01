@@ -96,7 +96,13 @@ void GameServer::UdpReceiveLoop()
         std::optional<sf::IpAddress> senderIp;
         unsigned short senderPort;
 
-        if (udpSocket.receive(packet, senderIp, senderPort) == sf::Socket::Status::Done)
+        sf::Socket::Status status;
+        {
+            std::lock_guard<std::mutex> lock(udpSocketMutex);
+            status = udpSocket.receive(packet, senderIp, senderPort);
+        }
+
+        if (status == sf::Socket::Status::Done)
         {
             if (!senderIp.has_value())
                 continue;
@@ -149,10 +155,14 @@ bool GameServer::HandleSessionStart(sf::Packet& packet, SessionStartResponseData
         sessionData.roomId,
         sessionData.players[0],
         sessionData.players[1],
-        udpSocket
+        udpSocket,
+        udpSocketMutex
     );
 
-    sessions[sessionData.roomId] = session;
+    {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        sessions[sessionData.roomId] = session;
+    }
 
     response.success = true;
     response.message = "Sesion creada en Game Server.";
@@ -173,18 +183,16 @@ void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short se
         UdpHelloData helloData;
         packet >> helloData;
 
-        GameSession* helloSession = nullptr;
+        std::shared_ptr<GameSession> helloSession;
 
-        for (std::pair<const std::string, std::shared_ptr<GameSession>>& pair : sessions)
         {
-            if (pair.first == helloData.roomId)
-            {
-                helloSession = pair.second.get();
-                break;
-            }
+            std::lock_guard<std::mutex> lock(sessionsMutex);
+            auto it = sessions.find(helloData.roomId);
+            if (it != sessions.end())
+                helloSession = it->second;
         }
 
-        if (helloSession == nullptr)
+        if (!helloSession)
         {
             std::cout << "UDP_HELLO sala no encontrada: " << helloData.roomId << std::endl;
             return;
@@ -195,7 +203,7 @@ void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short se
         return;
     }
 
-    std::shared_ptr<GameSession> session = nullptr;
+    std::shared_ptr<GameSession> session;
     int playerId = -1;
 
     {
@@ -204,8 +212,8 @@ void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short se
         {
             if (pair.second->BelongsToSession(senderIp, senderPort))
             {
-                session = pair.second;
-                playerId = pair.second->GetPlayerIdByAddress(senderIp, senderPort);
+                session   = pair.second;
+                playerId  = pair.second->GetPlayerIdByAddress(senderIp, senderPort);
                 break;
             }
         }
