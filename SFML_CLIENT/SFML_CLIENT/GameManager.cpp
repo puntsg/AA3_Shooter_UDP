@@ -6,7 +6,8 @@
 #include <algorithm>
 #include <cmath>
 
-GameManager::GameManager() {}
+GameManager::GameManager() {
+}
 
 void GameManager::InitGame(const std::vector<LobbyPlayerInfo>& players, int localDbId)
 {
@@ -48,7 +49,7 @@ void GameManager::InitGame(const std::vector<LobbyPlayerInfo>& players, int loca
 
     m_soundLoaded = m_tauntBuffer.loadFromFile(TAUNT_SOUND);
     if (m_soundLoaded)
-        m_tauntSound.setBuffer(m_tauntBuffer);
+        m_tauntSound.emplace(m_tauntBuffer);
 
     m_gameOver  = false;
     m_localWon  = false;
@@ -270,7 +271,7 @@ void GameManager::ResolveCollisions(PlayerVisual& player)
 
 void GameManager::UpdateBullets(float dt)
 {
-    for (Bullet& b : m_bullets)
+    for (BulletData& b : m_bullets)
     {
         float delta     = BULLET_SPEED * dt;
         b.position.x   += b.direction * delta;
@@ -290,7 +291,7 @@ void GameManager::UpdateBullets(float dt)
 
     m_bullets.erase(
         std::remove_if(m_bullets.begin(), m_bullets.end(),
-            [](const Bullet& b) { return !b.active; }),
+            [](const BulletData& b) { return !b.active; }),
         m_bullets.end()
     );
 }
@@ -314,7 +315,7 @@ void GameManager::SendTransform()
 void GameManager::SendShoot()
 {
     // Crear bala local. solo local el daño update en el server
-    Bullet b;
+    BulletData b;
     float bx   = m_local.flipped ? m_local.position.x : m_local.position.x + PLAYER_W;
     float by   = m_local.position.y + PLAYER_H * 0.5f;
     b.position = { bx, by };
@@ -383,13 +384,13 @@ void GameManager::ApplyTaunt(int taunterDbId)
     m_showTaunt  = true;
     m_tauntTimer = TAUNT_DURATION;
 
-    if (m_soundLoaded)
-        m_tauntSound.play();
+    if (m_soundLoaded && m_tauntSound)
+        m_tauntSound->play();
 }
 
 void GameManager::SpawnRivalBullet(const ShootReplicateData& data)
 {
-    Bullet b;
+    BulletData b;
     b.position  = data.position;
     b.direction = data.flipped ? -1.f : 1.f;
     b.fromLocal = false;
@@ -412,7 +413,7 @@ void GameManager::DrawGame(sf::RenderWindow& window)
 
     // Balas
     sf::RectangleShape bulletShape({ BULLET_W, BULLET_H });
-    for (const Bullet& b : m_bullets)
+    for (const BulletData& b : m_bullets)
     {
         bulletShape.setFillColor(b.fromLocal ? sf::Color::Yellow : sf::Color(255, 150, 0));
         // Convertir pos de mundo a pantalla 
