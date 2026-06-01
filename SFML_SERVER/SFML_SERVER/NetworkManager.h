@@ -31,6 +31,9 @@ private:
 
     void ProcessPacket(ConnectedClient& client, sf::Packet& packet);
 
+    void HandleCheckMap(ConnectedClient& client, sf::Packet& packet);
+    void HandleMapRequest(ConnectedClient& client);
+
     void HandleRegisterRequest(ConnectedClient& client, sf::Packet& packet);
     void HandleLoginRequest(ConnectedClient& client, sf::Packet& packet);
 
@@ -39,12 +42,15 @@ private:
     void HandleMatchmakingRequest(ConnectedClient& client, const CreateRoomRequestData& requestData, bool ranked);
     void HandleEndGame(ConnectedClient& client, sf::Packet& packet);
     void HandleRankingRequest(ConnectedClient& client, sf::Packet& packet);
+    void HandleDisconnectRequest(ConnectedClient& client);
 
     void SendCreateRoomResponse(ConnectedClient& client, bool success, const std::string& roomId, const std::string& message);
     void SendJoinRoomResponse(ConnectedClient& client, bool success, const std::string& roomId, const std::string& message);
     void SendLoginResponse(ConnectedClient& client, const LoginResponseData& data);
     void SendRegisterResponse(ConnectedClient& client, const RegisterResponseData& data);
     void SendErrorMessage(ConnectedClient& client, const std::string& message);
+
+    bool SendSessionToGameServer(const StartGameData& startData, std::string& message);
 
     void BroadcastRoomStatus(const std::string& roomId);
     void TryStartGame(const std::string& roomId);

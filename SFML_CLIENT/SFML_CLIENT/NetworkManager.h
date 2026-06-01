@@ -19,7 +19,7 @@ public:
         return nm;
     }
 
-    // --- Conexion con el servidor bootstrap ---
+    // --- Conexion con el servidor bootstrap ---   
     bool Connect(const sf::IpAddress& serverIp, unsigned short serverPort);
     bool ConnectToServer();       // Usa SERVER_IP y SERVER_PORT por defecto
     void CloseConnection();
@@ -28,7 +28,8 @@ public:
     // --- Protocolo de sala ---
     void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
     void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
-    void SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort);
+    bool SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort);
+    bool SendCancelMatchmakingRequest();
 
     void ReceiveData();
     void NetworkFetch();          // Alias de ReceiveData
@@ -45,6 +46,14 @@ public:
     const std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections() const;
     std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections();
     void ClearConnections();
+    bool SendUdpHelloReady();
+
+    // Envia paquete UDP al GameServer
+    void SendUdp(sf::Packet& packet);
+
+    // Procesa paquetes UDP pendientes al GS
+    void ReceiveUdpData();
+
     void SendToServer(sf::Packet& packet);
     bool SendLoginRequest(const std::string& username, const std::string& password);
     bool SendRegisterRequest(const std::string& username, const std::string& password);
@@ -66,15 +75,24 @@ private:
     void HandleRegisterResponse(sf::Packet& packet);
     void HandleRankingResponse(sf::Packet& packet);
 
+    // Handlers UDP
+    void HandleTransform(sf::Packet& packet);
+    void HandleShootReplicate(sf::Packet& packet);
+    void HandlePlayerHit(sf::Packet& packet);
+    void HandlePlayerTaunt(sf::Packet& packet);
+    void HandleEndgame(sf::Packet& packet);
+
 
 
     sf::TcpSocket m_socket;
+    sf::UdpSocket m_udpSocket;
     bool m_isConnected;
+    bool m_udpSocketReady;
     ClientState m_clientState;
     sf::TcpListener* listener;
 
     std::vector<std::unique_ptr<sf::TcpSocket>> m_gameConnections;
 
     static constexpr unsigned short SERVER_PORT = 55000;
-    const sf::IpAddress SERVER_IP = sf::IpAddress(127, 0, 0, 1);
+    const sf::IpAddress SERVER_IP = sf::IpAddress(192, 168, 0, 12);
 };

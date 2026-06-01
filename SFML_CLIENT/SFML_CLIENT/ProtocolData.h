@@ -1,9 +1,99 @@
 #pragma once
 
 #include <SFML/Network.hpp>
+#include <SFML/System/Vector2.hpp>
 #include <string>
 #include <vector>
 #include "PacketTypes.h"
+
+// Serializacion
+inline sf::Packet& operator<<(sf::Packet& packet, const sf::Vector2f& v)
+{
+    return packet << v.x << v.y;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, sf::Vector2f& v)
+{
+    return packet >> v.x >> v.y;
+}
+
+struct UdpHelloData
+{
+    std::string roomId;
+    int playerId = -1;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const UdpHelloData& data)
+{
+    return packet << data.roomId << data.playerId;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, UdpHelloData& data)
+{
+    return packet >> data.roomId >> data.playerId;
+}
+
+// Pos y orientacion
+struct TransformData
+{
+    int packetId      = 0;
+    int dbId          = -1;
+    int localPlayerId = -1;
+    float x           = 0.f;
+    float y           = 0.f;
+    bool flipped      = false;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const TransformData& data)
+{
+    return packet << data.packetId << data.dbId << data.localPlayerId << data.x << data.y << data.flipped;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, TransformData& data)
+{
+    return packet >> data.packetId >> data.dbId >> data.localPlayerId >> data.x >> data.y >> data.flipped;
+}
+
+// Disparo replicado desde enemigo
+struct ShootReplicateData
+{
+    sf::Vector2f position;
+    bool flipped = false;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const ShootReplicateData& data)
+{
+    return packet << data.position << data.flipped;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, ShootReplicateData& data)
+{
+    return packet >> data.position >> data.flipped;
+}
+
+struct PlayerHitData
+{
+    int targetPlayerId  = -1;
+    int newHealth       = 0;
+    int newLifes        = 0;
+    sf::Vector2f respawnPosition;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const PlayerHitData& data)
+{
+    return packet << data.targetPlayerId << data.newHealth << data.newLifes << data.respawnPosition;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, PlayerHitData& data)
+{
+    return packet >> data.targetPlayerId >> data.newHealth >> data.newLifes >> data.respawnPosition;
+}
+
+struct EndgameData
+{
+    int winnerPlayerId = -1;
+    int loserPlayerId  = -1;
+    bool cheating      = false;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const EndgameData& data)
+{
+    return packet << data.winnerPlayerId << data.loserPlayerId << data.cheating;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, EndgameData& data)
+{
+    return packet >> data.winnerPlayerId >> data.loserPlayerId >> data.cheating;
+}
 
 //Ranking
 struct RankingData
@@ -130,6 +220,8 @@ struct StartGameData
 {
     std::string roomId;
     int playerCount = 0;
+    std::string gameServerIp;
+    unsigned short gameServerUdpPort = 0;
     std::vector<LobbyPlayerInfo> players;
 };
 
@@ -303,12 +395,53 @@ inline sf::Packet& operator>>(sf::Packet& packet, ErrorMessageData& data)
     return packet;
 }
 
-
 sf::Packet& operator<<(sf::Packet& packet, const RoomStatusUpdateData& data);
 sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data);
 
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data);
 sf::Packet& operator>>(sf::Packet& packet, StartGameData& data);
+
+// Launcher / verificacion de mapa
+struct MapCheckData
+{
+    std::string version;
+};
+
+struct MapStatusData
+{
+    bool upToDate = false;
+};
+
+struct MapResponseData
+{
+    std::string version;
+    std::string mapContent;
+};
+
+inline sf::Packet& operator<<(sf::Packet& packet, const MapCheckData& data)
+{
+    return packet << data.version;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, MapCheckData& data)
+{
+    return packet >> data.version;
+}
+inline sf::Packet& operator<<(sf::Packet& packet, const MapStatusData& data)
+{
+    return packet << data.upToDate;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, MapStatusData& data)
+{
+    return packet >> data.upToDate;
+}
+inline sf::Packet& operator<<(sf::Packet& packet, const MapResponseData& data)
+{
+    return packet << data.version << data.mapContent;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, MapResponseData& data)
+{
+    return packet >> data.version >> data.mapContent;
+}
 
 // RankingUpdateData
 inline sf::Packet& operator<<(sf::Packet& packet, const RankingUpdateData& data)

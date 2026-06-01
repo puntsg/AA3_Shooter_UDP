@@ -34,17 +34,35 @@ enum PacketType
     SHOOT_REPLICATE,
     PLAYER_HIT,
     PLAYER_TAUNT,
+
+    // Legado Conecta
+    PIECEADDED,
+    NEXT_TURN,
+
     ENDGAME,
     RANKINGUPDATE,
     RANKING_REQUEST,
     RANKING_RESPONSE,
+
+    // Player
+    PLAYER_MOVES,
+    PLAYER_SHOTS,
+    PLAYER_HURTED,
+    BULLET_MOVES,
 
     // Desconexion
     DISCONNECT,
     PLAYER_DISCONNECTED,
     PING,
 
-    ERROR_MESSAGE
+    ERROR_MESSAGE,
+
+    // TCP del matchmaking
+    SESSION_START_REQUEST = 100,
+    SESSION_START_RESPONSE = 101,
+
+    // primer UDP del cliente
+    UDP_HELLO = 102
 };
 
 inline sf::Packet& operator<<(sf::Packet& packet, const PacketType& type)

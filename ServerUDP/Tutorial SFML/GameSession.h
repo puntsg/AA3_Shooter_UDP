@@ -37,6 +37,7 @@ public:
     void ProcessShotPacket(int playerId, sf::Packet& packet);
     void ProcessTauntPacket(int playerId);
     void ProcessReadyPacket(int playerId);
+    bool RegisterPlayerEndpoint(int playerId, const sf::IpAddress& ip, unsigned short port);
 
     void Update(float dt);
 

@@ -71,8 +71,17 @@ void GameServer::TcpListenerLoop()
             PacketType type = NONE;
             packet >> type;
 
-            if (type == START_GAME)
-                HandleSessionStart(packet);
+            // viene del matchmaking
+            if (type == SESSION_START_REQUEST)
+            {
+                SessionStartResponseData response;
+                HandleSessionStart(packet, response);
+
+                sf::Packet responsePacket;
+                responsePacket << PacketType::SESSION_START_RESPONSE << response;
+                if (bootstrapSocket.send(responsePacket) != sf::Socket::Status::Done)
+                    std::cerr << "Fail sending session response" << std::endl;
+            }
         }
 
         bootstrapSocket.disconnect();
@@ -94,7 +103,7 @@ void GameServer::UdpReceiveLoop()
 
             sf::IpAddress ip = senderIp.value();
 
-            // metemos el packet a procesar
+            // al threadpool
             pool.Enqueue([this, ip, senderPort, packet]() mutable
                 {
                     RouteUdpPacket(ip, senderPort, packet);
@@ -123,13 +132,18 @@ void GameServer::UpdateLoop()
     }
 }
 
-void GameServer::HandleSessionStart(sf::Packet& packet)
+bool GameServer::HandleSessionStart(sf::Packet& packet, SessionStartResponseData& response)
 {
     SessionStartData sessionData;
     packet >> sessionData;
 
+    response.roomId = sessionData.roomId;
     if (sessionData.players.size() < 2)
-        return;
+    {
+        response.success = false;
+        response.message = "Faltan jugadores para crear la sesion.";
+        return false;
+    }
 
     std::shared_ptr<GameSession> session = std::make_shared<GameSession>(
         sessionData.roomId,
@@ -138,19 +152,48 @@ void GameServer::HandleSessionStart(sf::Packet& packet)
         udpSocket
     );
 
-    {
-        std::lock_guard<std::mutex> lock(sessionsMutex);
-        sessions[sessionData.roomId] = session;
-    }
+    sessions[sessionData.roomId] = session;
+
+    response.success = true;
+    response.message = "Sesion creada en Game Server.";
 
     std::cout << "Room created: " << sessionData.roomId
         << " Total rooms: " << sessions.size() << std::endl;
+
+    return true;
 }
 
 void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short senderPort, sf::Packet& packet)
 {
     PacketType type = NONE;
     packet >> type;
+
+    if (type == UDP_HELLO)
+    {
+        UdpHelloData helloData;
+        packet >> helloData;
+
+        GameSession* helloSession = nullptr;
+
+        for (std::pair<const std::string, std::shared_ptr<GameSession>>& pair : sessions)
+        {
+            if (pair.first == helloData.roomId)
+            {
+                helloSession = pair.second.get();
+                break;
+            }
+        }
+
+        if (helloSession == nullptr)
+        {
+            std::cout << "UDP_HELLO sala no encontrada: " << helloData.roomId << std::endl;
+            return;
+        }
+
+        helloSession->RegisterPlayerEndpoint(helloData.playerId, senderIp, senderPort);
+
+        return;
+    }
 
     std::shared_ptr<GameSession> session = nullptr;
     int playerId = -1;

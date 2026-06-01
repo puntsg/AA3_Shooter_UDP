@@ -2,7 +2,27 @@
 #include "DatabaseConnector.h"
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <SFML/System.hpp>
+
+static constexpr const char* MAPS_DIR = "maps/";
+// ip del pc servidor
+static constexpr const char* GAME_SERVER_IP = "192.168.0.12";
+static constexpr unsigned short GAME_SERVER_TCP_PORT = 55001;
+static constexpr unsigned short GAME_SERVER_UDP_PORT = 55002;
+
+// Busca txt devuelve nombre
+static std::string GetCurrentMapFilename()
+{
+    for (const auto& entry : std::filesystem::directory_iterator(MAPS_DIR))
+    {
+        if (entry.path().extension() == ".txt")
+            return entry.path().filename().string();
+    }
+    return "";
+}
 
 NetworkManager::NetworkManager()
     : m_isRunning(false)
@@ -100,6 +120,12 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
     std::cout << "[SERVER] Processing package: " << packetType << std::endl << " from: " << client.username << std::endl;
     switch (packetType)
     {
+    case PacketType::CHECK_MAP:
+        HandleCheckMap(client, packet);
+        break;
+    case PacketType::MAP_REQUEST:
+        HandleMapRequest(client);
+        break;
     case PacketType::REGISTER_REQUEST:
         HandleRegisterRequest(client, packet);
         break;
@@ -118,6 +144,9 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
     case PacketType::ENDGAME:
         HandleEndGame(client, packet);
         break;
+    case PacketType::DISCONNECT:
+        HandleDisconnectRequest(client);
+        break;
     case PacketType::PLAYER_MOVES:
         std::cout << "player send movement packet" << std::endl;
         break;
@@ -127,6 +156,55 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
             << std::endl;
         break;
     }
+}
+
+void NetworkManager::HandleCheckMap(ConnectedClient& client, sf::Packet& packet)
+{
+    MapCheckData checkData;
+    packet >> checkData;
+
+    std::string currentFilename = GetCurrentMapFilename();
+
+    MapStatusData statusData;
+    statusData.upToDate = (!currentFilename.empty() && checkData.version == currentFilename);
+
+    sf::Packet responsePacket;
+    responsePacket << PacketType::MAP_STATUS << statusData;
+    client.socket->send(responsePacket);
+
+    std::cout << "[SERVER] CheckMap de playerId " << client.playerId
+              << " | cliente: " << checkData.version
+              << " | servidor: " << currentFilename
+              << " | upToDate: " << statusData.upToDate << std::endl;
+}
+
+void NetworkManager::HandleMapRequest(ConnectedClient& client)
+{
+    std::string currentFilename = GetCurrentMapFilename();
+    std::string mapFilePath     = std::string(MAPS_DIR) + currentFilename;
+
+    std::ifstream mapFile(mapFilePath);
+    std::string mapContent;
+
+    if (mapFile.is_open())
+    {
+        mapContent = std::string(std::istreambuf_iterator<char>(mapFile),
+                                 std::istreambuf_iterator<char>());
+    }
+    else
+    {
+        std::cerr << "[SERVER] No se encontro el archivo de mapa: " << mapFilePath << std::endl;
+    }
+
+    MapResponseData mapData;
+    mapData.version    = currentFilename;   // nombre del .txt
+    mapData.mapContent = mapContent;
+
+    sf::Packet responsePacket;
+    responsePacket << PacketType::MAP_RESPONSE << mapData;
+    client.socket->send(responsePacket);
+
+    std::cout << "[SERVER] Mapa '" << currentFilename << "' enviado a playerId " << client.playerId << std::endl;
 }
 
 void NetworkManager::HandleRegisterRequest(ConnectedClient& client, sf::Packet& packet)
@@ -318,6 +396,21 @@ void NetworkManager::HandleRankingRequest(ConnectedClient& client, sf::Packet& p
     client.socket->send(responsePacket);
 }
 
+void NetworkManager::HandleDisconnectRequest(ConnectedClient& client)
+{
+    RemoveClientFromMatchmakingQueues(client.playerId);
+
+    if (client.currentRoomId.rfind("__queue_", 0) == 0)
+    {
+        client.currentRoomId.clear();
+    }
+
+    SendCreateRoomResponse(client, false, "", "Busqueda cancelada.");
+    std::cout << "[SERVER][Matchmaking] Busqueda cancelada para playerId "
+        << client.playerId
+        << std::endl;
+}
+
 
 
 void NetworkManager::SendCreateRoomResponse(ConnectedClient& client, bool success, const std::string& roomId, const std::string& message)
@@ -393,6 +486,60 @@ void NetworkManager::SendErrorMessage(ConnectedClient& client, const std::string
     client.socket->send(packet);
 }
 
+bool NetworkManager::SendSessionToGameServer(const StartGameData& startData, std::string& message)
+{
+    sf::IpAddress gameServerIp(192, 168, 0, 12);
+
+    sf::TcpSocket gameServerSocket;
+    gameServerSocket.setBlocking(true);
+
+    if (gameServerSocket.connect(gameServerIp, GAME_SERVER_TCP_PORT, sf::milliseconds(1500)) != sf::Socket::Status::Done)
+    {
+        message = "No se pudo conectar con el Game Server.";
+        return false;
+    }
+
+    SessionStartData sessionData;
+    sessionData.roomId = startData.roomId;
+    sessionData.playerCount = startData.playerCount;
+    sessionData.players = startData.players;
+
+    // sala para el udp
+    sf::Packet requestPacket;
+    requestPacket << static_cast<short>(PacketType::SESSION_START_REQUEST);
+    requestPacket << sessionData;
+
+    gameServerSocket.send(requestPacket);
+
+    gameServerSocket.setBlocking(false);
+    sf::Clock waitClock;
+
+    // espera corta
+    while (waitClock.getElapsedTime().asMilliseconds() < 1500)
+    {
+        sf::Packet responsePacket;
+        sf::Socket::Status status = gameServerSocket.receive(responsePacket);
+
+        if (status == sf::Socket::Status::Done)
+        {
+            PacketType responseType = PacketType::NONE;
+            responsePacket >> responseType;
+
+            SessionStartResponseData responseData;
+            responsePacket >> responseData;
+            message = responseData.message;
+            gameServerSocket.disconnect();
+            return responseData.success;
+        }
+
+        sf::sleep(sf::milliseconds(10));
+    }
+
+    message = "El Game Server no respondio a tiempo.";
+    gameServerSocket.disconnect();
+    return false;
+}
+
 void NetworkManager::BroadcastRoomStatus(const std::string& roomId)
 {
     Room* room = m_roomManager.GetRoom(roomId);
@@ -461,6 +608,8 @@ void NetworkManager::TryStartGame(const std::string& roomId)
     StartGameData startData;
     startData.roomId = room->roomId;
     startData.playerCount = static_cast<short>(room->playerIds.size());
+    startData.gameServerIp = GAME_SERVER_IP;
+    startData.gameServerUdpPort = GAME_SERVER_UDP_PORT;
 
     for (int playerId : room->playerIds)
     {
@@ -479,6 +628,36 @@ void NetworkManager::TryStartGame(const std::string& roomId)
 
         startData.players.push_back(playerInfo);
     }
+
+    std::string gameServerMessage;
+    // antes de mandar START_GAME
+    if (!SendSessionToGameServer(startData, gameServerMessage))
+    {
+        room->inGame = false;
+
+        std::cerr << "[SERVER] No se pudo iniciar Game Server para sala "
+            << roomId
+            << ": "
+            << gameServerMessage
+            << std::endl;
+
+        for (int playerId : room->playerIds)
+        {
+            ConnectedClient* roomClient = GetClientById(playerId);
+            if (roomClient != nullptr)
+            {
+                SendErrorMessage(*roomClient, "No se pudo iniciar la partida: " + gameServerMessage);
+            }
+        }
+
+        return;
+    }
+
+    std::cout << "[SERVER] Game Server preparado para sala "
+        << roomId
+        << ": "
+        << gameServerMessage
+        << std::endl;
 
     for (int playerId : room->playerIds)
     {
@@ -525,8 +704,8 @@ void NetworkManager::TryCreateMatchFromQueue(std::vector<int>& queue, const std:
             continue;
         }
 
-        const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-        const std::string roomId = "match_" + queueName + "_" + std::to_string(firstPlayerId) + "_" + std::to_string(secondPlayerId) + "_" + std::to_string(now);
+        long long now = std::chrono::steady_clock::now().time_since_epoch().count();
+        std::string roomId = "match_" + queueName + "_" + std::to_string(firstPlayerId) + "_" + std::to_string(secondPlayerId) + "_" + std::to_string(now);
 
         if (!m_roomManager.CreateRoom(roomId, firstPlayerId))
         {
