@@ -4,6 +4,22 @@
 #include "SpriteRenderer.h"
 #include <iostream>
 
+static const sf::Vector2f P1_START_POS(160.f, 240.f);
+static const sf::Vector2f P2_START_POS(320.f, 240.f);
+
+static int GetMyMatchIndex()
+{
+    const ClientState& state = NM.GetClientState();
+
+    for (int i = 0; i < (int)state.roomPlayers.size(); i++)
+    {
+        if (state.roomPlayers[i].playerId == state.playerId)
+            return i;
+    }
+
+    return state.isHost ? 0 : 1;
+}
+
 void GameScene::OnEnter()
 {
     std::cout << "[GameScene] Iniciando partida platformer..." << std::endl;
@@ -13,15 +29,18 @@ void GameScene::OnEnter()
     localPlayer->isLocal = true;
     remotePlayer = new Player();
 
-    if(NM.GetClientState().isHost){
-        localPlayer->GetTransform()->position = sf::Vector2f(48.f, 48.f);
-        remotePlayer->GetTransform()->position = sf::Vector2f(200.f, 48.f);
+    int myIdx = GetMyMatchIndex();
+    if (myIdx == 0)
+    {
+        localPlayer->GetTransform()->position = P1_START_POS;
+        remotePlayer->GetTransform()->position = P2_START_POS;
     }
     else
     {
-        localPlayer->GetTransform()->position = sf::Vector2f(200.f, 48.f);
-        remotePlayer->GetTransform()->position = sf::Vector2f(48.f, 48.f);
+        localPlayer->GetTransform()->position = P2_START_POS;
+        remotePlayer->GetTransform()->position = P1_START_POS;
     }
+
     tileMap = new TileMap();
     tileMap->initMap("Tilemaps/Tilemap1.txt");
 
@@ -208,6 +227,10 @@ void GameScene::Render(sf::RenderWindow& window)
 void GameScene::OnExit()
 {
     std::cout << "[GameScene] Saliendo de la partida." << std::endl;
+
+    sf::Packet packet;
+    packet << PacketType::DISCONNECT;
+    NM.SendUdp(packet);
 
     delete localPlayer;  localPlayer  = nullptr;
     delete remotePlayer; remotePlayer = nullptr;
