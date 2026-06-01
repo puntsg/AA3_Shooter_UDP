@@ -3,6 +3,8 @@
 
 NetworkManager::NetworkManager()
     : m_isConnected(false)
+    , m_udpSocketReady(false)
+    , listener(nullptr)
 {
 }
 
@@ -137,7 +139,45 @@ void NetworkManager::ClearConnections()
         listener = nullptr;
     }
 
+    if (m_udpSocketReady)
+    {
+        m_udpSocket.unbind();
+        m_udpSocketReady = false;
+    }
+
     std::cout << "[CLIENT] Conexiones P2P y listener cerrados." << std::endl;
+}
+
+bool NetworkManager::SendUdpHelloReady()
+{
+    auto ip = sf::IpAddress::resolve(m_clientState.gameServerIp);
+    sf::IpAddress gameServerIp = ip.value();
+
+    if (!m_udpSocketReady)
+    {
+        // puerto libre
+        m_udpSocket.bind(sf::Socket::AnyPort);
+        m_udpSocket.setBlocking(false);
+        m_udpSocketReady = true;
+    }
+
+    UdpHelloData helloData;
+    helloData.roomId = m_clientState.currentRoomId;
+    helloData.playerId = m_clientState.playerId;
+
+    sf::Packet packet;
+    packet << PacketType::UDP_HELLO << helloData;
+
+    m_udpSocket.send(packet, gameServerIp, m_clientState.gameServerUdpPort);
+
+    std::cout << "[CLIENT-UDP] hello -> "
+        << m_clientState.gameServerIp << ":" 
+        << m_clientState.gameServerUdpPort 
+        << " puerto local "
+        << m_udpSocket.getLocalPort()
+        << std::endl;
+
+    return true;
 }
 
 bool NetworkManager::Connect(const sf::IpAddress& serverIp, unsigned short serverPort)
@@ -231,12 +271,63 @@ void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::s
     }
 }
 
-void NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort)
+bool NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort)
 {
+    if (!m_isConnected)
+    {
+        std::cerr << "[CLIENT] No se puede enviar MATCHMAKING_REQUEST: no hay conexion." << std::endl;
+        return false;
+    }
+
     const std::string queueId = ranked ? "__queue_ranked" : "__queue_normal";
-    SendCreateRoomRequest(queueId, nickname, gamePort);
+    sf::Packet packet;
+
+    CreateRoomRequestData requestData;
+    requestData.roomId = queueId;
+    requestData.username = nickname;
+    requestData.gamePort = gamePort;
+
+    packet << static_cast<short>(PacketType::CREATE_ROOM_REQUEST);
+    packet << requestData;
+
+    if (m_socket.send(packet) != sf::Socket::Status::Done)
+    {
+        std::cerr << "[CLIENT] Error al enviar MATCHMAKING_REQUEST." << std::endl;
+        return false;
+    }
+
+    m_clientState.isSearchingMatch = true;
+    m_clientState.searchingRanked = ranked;
+    m_clientState.isWaitingInRoom = false;
+    m_clientState.currentRoomId = queueId;
+    m_clientState.roomPlayers.clear();
+
+    return true;
 }
 
+bool NetworkManager::SendCancelMatchmakingRequest()
+{
+    if (!m_isConnected)
+    {
+        return false;
+    }
+
+    sf::Packet packet;
+    packet << static_cast<short>(PacketType::DISCONNECT);
+
+    if (m_socket.send(packet) != sf::Socket::Status::Done)
+    {
+        return false;
+    }
+
+    m_clientState.isSearchingMatch = false;
+    m_clientState.searchingRanked = false;
+    m_clientState.isWaitingInRoom = false;
+    m_clientState.currentRoomId.clear();
+    m_clientState.roomPlayers.clear();
+
+    return true;
+}
 
 
 bool NetworkManager::IsConnected() const
@@ -389,6 +480,103 @@ bool NetworkManager::SendRankingRequest(const std::string& username)
     return true;
 }
 
+void NetworkManager::SendUdp(sf::Packet& packet)
+{
+    if (!m_udpSocketReady)
+    {
+        std::cerr << "[CLIENT-UDP] Socket no listo para enviar." << std::endl;
+        return;
+    }
+
+    std::optional<sf::IpAddress> ip = sf::IpAddress::resolve(m_clientState.gameServerIp);
+    if (!ip.has_value())
+    {
+        std::cerr << "[CLIENT-UDP] IP del GameServer invalida." << std::endl;
+        return;
+    }
+
+    m_udpSocket.send(packet, *ip, m_clientState.gameServerUdpPort);
+}
+
+void NetworkManager::ReceiveUdpData()
+{
+    if (!m_udpSocketReady)
+        return;
+
+    sf::Packet packet;
+    std::optional<sf::IpAddress> senderIp;
+    unsigned short senderPort = 0;
+
+    while (m_udpSocket.receive(packet, senderIp, senderPort) == sf::Socket::Status::Done)
+    {
+        PacketType type = NONE;
+        packet >> type;
+
+        switch (type)
+        {
+        case PacketType::TRANSFORM:
+            HandleTransform(packet);
+            break;
+        case PacketType::SHOOT_REPLICATE:
+            HandleShootReplicate(packet);
+            break;
+        case PacketType::PLAYER_HIT:
+            HandlePlayerHit(packet);
+            break;
+        case PacketType::PLAYER_TAUNT:
+            HandlePlayerTaunt(packet);
+            break;
+        case PacketType::ENDGAME:
+            HandleEndgame(packet);
+            break;
+        default:
+            break;
+        }
+
+        packet.clear();
+    }
+}
+
+void NetworkManager::HandleTransform(sf::Packet& packet)
+{
+    TransformData data;
+    packet >> data;
+
+    for (TransformData& t : m_clientState.incomingTransforms)
+    {
+        if (t.localPlayerId == data.localPlayerId)
+        {
+            t = data;
+            return;
+        }
+    }
+    m_clientState.incomingTransforms.push_back(data);
+}
+
+void NetworkManager::HandleShootReplicate(sf::Packet& packet)
+{
+    packet >> m_clientState.lastShootReplicate;
+    m_clientState.hasShootReplicate = true;
+}
+
+void NetworkManager::HandlePlayerHit(sf::Packet& packet)
+{
+    packet >> m_clientState.lastPlayerHit;
+    m_clientState.hasPlayerHit = true;
+}
+
+void NetworkManager::HandlePlayerTaunt(sf::Packet& packet)
+{
+    packet >> m_clientState.tauntPlayerId;
+    m_clientState.hasTaunt = true;
+}
+
+void NetworkManager::HandleEndgame(sf::Packet& packet)
+{
+    packet >> m_clientState.endgameData;
+    m_clientState.hasEndgame = true;
+}
+
 void NetworkManager::NotifyPlayerWin(const std::string& username)
 {
     sf::Packet packet;
@@ -412,6 +600,14 @@ void NetworkManager::HandleCreateRoomResponse(sf::Packet& packet)
         m_clientState.isWaitingInRoom = true;
         m_clientState.hasGameStarted = false;
     }
+    else
+    {
+        m_clientState.isSearchingMatch = false;
+        m_clientState.searchingRanked = false;
+        m_clientState.isWaitingInRoom = false;
+        m_clientState.currentRoomId.clear();
+        m_clientState.roomPlayers.clear();
+    }
 }
 
 void NetworkManager::HandleJoinRoomResponse(sf::Packet& packet)
@@ -429,6 +625,14 @@ void NetworkManager::HandleJoinRoomResponse(sf::Packet& packet)
         m_clientState.isHost = false;
         m_clientState.isWaitingInRoom = true;
         m_clientState.hasGameStarted = false;
+    }
+    else
+    {
+        m_clientState.isSearchingMatch = false;
+        m_clientState.searchingRanked = false;
+        m_clientState.isWaitingInRoom = false;
+        m_clientState.currentRoomId.clear();
+        m_clientState.roomPlayers.clear();
     }
 }
 
@@ -448,6 +652,7 @@ void NetworkManager::HandleRoomStatusUpdate(sf::Packet& packet)
     m_clientState.currentRoomId = roomData.roomId;
     m_clientState.roomPlayers = roomData.players;
     m_clientState.isWaitingInRoom = true;
+    m_clientState.isSearchingMatch = roomData.roomId.rfind("__queue_", 0) == 0;
 
     for (const LobbyPlayerInfo& player : roomData.players)
     {
@@ -468,12 +673,20 @@ void NetworkManager::HandleStartGame(sf::Packet& packet)
         << startData.roomId
         << " | Players: "
         << startData.playerCount
+        << " | GameServer UDP: "
+        << startData.gameServerIp
+        << ":"
+        << startData.gameServerUdpPort
         << std::endl;
 
     m_clientState.currentRoomId = startData.roomId;
     m_clientState.roomPlayers = startData.players;
+    m_clientState.gameServerIp = startData.gameServerIp;
+    m_clientState.gameServerUdpPort = startData.gameServerUdpPort;
     m_clientState.hasGameStarted = true;
     m_clientState.isWaitingInRoom = false;
+    m_clientState.isSearchingMatch = false;
+    m_clientState.searchingRanked = false;
 
     for (const LobbyPlayerInfo& player : startData.players)
     {

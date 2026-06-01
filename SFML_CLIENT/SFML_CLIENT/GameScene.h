@@ -1,30 +1,22 @@
 #pragma once
 #include "Scene.h"
 #include "GameManager.h"
-#include <iostream>
-#include <vector>
-#include <SFML/Network.hpp>
-#include "NetworkManager.h"
 
 class GameScene : public Scene
 {
-private:
-    GameManager gameManager;
-
 public:
     GameScene() = default;
 
-    void SetupGame(const std::vector<Player>& players, int localID);
-
-    void SyncNextTurn(int playerID);
-
-    void OnEnter() override;
-
+    void OnEnter()                          override;
     void HandleEvent(const sf::Event& event) override;
+    void Update(float dt)                   override;
+    void Render(sf::RenderWindow& window)   override;
+    void OnExit()                           override;
 
-    void Update(float dt) override;
+private:
+    // Gestiona el fin de partida
+    void HandleGameEnd();
 
-    void Render(sf::RenderWindow& window) override;
-
-    void OnExit() override;
+    GameManager m_gameManager;
+    float       m_gameOverTimer = 0.f;
 };

@@ -11,19 +11,17 @@ GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Inf
     playerIds[0] = p1Info.playerId;
     playerIds[1] = p2Info.playerId;
 
-    //Optional para que el programa no pete si esta mal pasada la ip
-    std::optional<sf::IpAddress> resolvedP1 = sf::IpAddress::resolve(p1Info.ip);
-    states[0].ip = resolvedP1.has_value() ? resolvedP1.value() : sf::IpAddress::Any;
-    states[0].port = p1Info.gamePort;
+    // se llena con el hello udp
+    states[0].ip = sf::IpAddress::Any;
+    states[0].port = 0;
     states[0].position = sf::Vector2f(RESPAWN_X - 100.f, RESPAWN_Y);
 
-    std::optional<sf::IpAddress> resolvedP2 = sf::IpAddress::resolve(p2Info.ip);
-    states[1].ip = resolvedP2.has_value() ? resolvedP2.value() : sf::IpAddress::Any;
-    states[1].port = p2Info.gamePort;
+    states[1].ip = sf::IpAddress::Any;
+    states[1].port = 0;
     states[1].position = sf::Vector2f(RESPAWN_X + 100.f, RESPAWN_Y);
 
-    std::cout << "Room " << roomId << " ready. P1: " << p1Info.ip << ":" << p1Info.gamePort 
-              << " P2: " << p2Info.ip << ":" << p2Info.gamePort << std::endl;
+    std::cout << "Room " << roomId << " esperando UDP. P1: " << p1Info.playerId
+              << " P2: " << p2Info.playerId << std::endl;
 }
 
 void GameSession::ProcessMovePacket(int playerId, sf::Packet& packet)
@@ -80,6 +78,8 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
     sf::Packet replicatePacket;
     replicatePacket << PacketType::SHOOT_REPLICATE << replicateData;
     SendToOther(playerId, replicatePacket);
+
+    HandleHit(playerId);
 }
 
 void GameSession::ProcessTauntPacket(int playerId)
@@ -99,6 +99,34 @@ void GameSession::ProcessReadyPacket(int playerId)
         bothReady = true;
         std::cout << "Both ready in " << roomId << std::endl;
     }
+}
+
+bool GameSession::RegisterPlayerEndpoint(int playerId, const sf::IpAddress& ip, unsigned short port)
+{
+    int index = -1;
+    if (playerIds[0] == playerId)
+        index = 0;
+    else if (playerIds[1] == playerId)
+        index = 1;
+
+    if (index == -1)
+        return false;
+
+    states[index].ip = ip;
+    states[index].port = port;
+    states[index].ready = true;
+    states[index].lastPacketClock.restart();
+
+    std::cout << "UDP ready p" << playerId << " -> "
+        << ip.toString() << ":" << port << std::endl;
+
+    if (states[0].ready && states[1].ready)
+    {
+        bothReady = true;
+        std::cout << "Both ready in " << roomId << std::endl;
+    }
+
+    return true;
 }
 
 void GameSession::Update(float dt)
@@ -129,8 +157,8 @@ std::string GameSession::GetRoomId() const
 
 bool GameSession::BelongsToSession(const sf::IpAddress& ip, unsigned short port) const
 {
-    return (states[0].ip == ip && states[0].port == port) ||
-           (states[1].ip == ip && states[1].port == port);
+    return (states[0].ready && states[0].ip == ip && states[0].port == port) ||
+           (states[1].ready && states[1].ip == ip && states[1].port == port);
 }
 
 int GameSession::GetPlayerIdByAddress(const sf::IpAddress& ip, unsigned short port) const

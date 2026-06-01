@@ -1,70 +1,55 @@
 #include "ThreadPool.h"
-#include <iostream>
 
-ThreadPool::ThreadPool(int numThreads)
+ThreadPool::ThreadPool(int numThreads) : stopping(false)
 {
-    stopping = false;
     for (int i = 0; i < numThreads; i++)
         threads.emplace_back(&ThreadPool::Worker, this);
 }
 
 ThreadPool::~ThreadPool()
 {
-    {
-        std::lock_guard<std::mutex> lock(tasksMutex);
-        stopping = true;
-    }
+    stopping = true;
+    cv.notify_all();
 
-    for (int i = 0; i < threads.size(); i++)
+    for (auto& t : threads)
     {
-        if (threads[i].joinable())
-            threads[i].join();
+        if (t.joinable())
+            t.join();
     }
 }
 
-
 void ThreadPool::Enqueue(std::function<void()> task)
 {
-    // Pon un job a la cola
-    std::lock_guard<std::mutex> lock(tasksMutex);
-    tasks.push(task);
+    {
+        std::lock_guard<std::mutex> lock(tasksMutex);
+        tasks.push(std::move(task));
+    }
+    cv.notify_one();
 }
 
 int ThreadPool::Size() const
 {
-    return threads.size();
+    return static_cast<int>(threads.size());
 }
-
 
 void ThreadPool::Worker()
 {
-    bool closeThread = false;
-    while (!closeThread)
+    while (true)
     {
         std::function<void()> task;
-        
+
         {
-            std::lock_guard<std::mutex> lock(tasksMutex);
-            
-            if (!tasks.empty())
-            {
-                task = tasks.front();
-                tasks.pop();
-            }
-            else if (stopping)
-            {
-                closeThread = true;
-            }
+            std::unique_lock<std::mutex> lock(tasksMutex);
+            // Duerme hasta hay trabajo o se quiera parar
+            cv.wait(lock, [this] { return !tasks.empty() || stopping.load(); });
+
+            if (stopping && tasks.empty())
+                return;
+
+            task = std::move(tasks.front());
+            tasks.pop();
         }
 
-        if (task)
-        {
-            task();
-        }
-        else if (!closeThread)
-        {
-            // Si no hay tarea duemo los cores
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
+        task();
     }
 }

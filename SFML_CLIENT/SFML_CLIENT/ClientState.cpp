@@ -5,7 +5,11 @@ void ClientState::ResetRoomState()
     currentRoomId.clear();
     isHost = false;
     isWaitingInRoom = false;
+    isSearchingMatch = false;
+    searchingRanked = false;
     hasGameStarted = false;
+    gameServerIp.clear();
+    gameServerUdpPort = 0;
     roomPlayers.clear();
 }
 

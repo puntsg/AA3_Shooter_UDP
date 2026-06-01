@@ -21,3 +21,15 @@ sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data)
     }
     return packet;
 }
+
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartResponseData& data)
+{
+    packet << data.success << data.roomId << data.message;
+    return packet;
+}
+
+sf::Packet& operator>>(sf::Packet& packet, SessionStartResponseData& data)
+{
+    packet >> data.success >> data.roomId >> data.message;
+    return packet;
+}
