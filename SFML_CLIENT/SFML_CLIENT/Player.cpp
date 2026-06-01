@@ -38,6 +38,9 @@ Player::Player(int _id, std::string _name, int _score, sf::Color _color, bool _i
 
 void Player::Update(float dt)
 {
+	if (!isLocal)
+		return;
+
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) {
 		velocity.x = -GameConstants::Player::SPEED;
 		animRenderer->flipped = true;

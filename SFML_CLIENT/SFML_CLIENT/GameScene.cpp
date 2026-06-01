@@ -8,12 +8,20 @@ void GameScene::OnEnter()
 {
     std::cout << "[GameScene] Iniciando partida platformer..." << std::endl;
 
+
     localPlayer = new Player();
-    localPlayer->GetTransform()->position = sf::Vector2f(48.f, 48.f);
-
+    localPlayer->isLocal = true;
     remotePlayer = new Player();
-    remotePlayer->GetTransform()->position = sf::Vector2f(200.f, 48.f);
 
+    if(NM.GetClientState().isHost){
+        localPlayer->GetTransform()->position = sf::Vector2f(48.f, 48.f);
+        remotePlayer->GetTransform()->position = sf::Vector2f(200.f, 48.f);
+    }
+    else
+    {
+        localPlayer->GetTransform()->position = sf::Vector2f(200.f, 48.f);
+        remotePlayer->GetTransform()->position = sf::Vector2f(48.f, 48.f);
+    }
     tileMap = new TileMap();
     tileMap->initMap("Tilemaps/Tilemap1.txt");
 
