@@ -17,16 +17,29 @@ bool NetworkManager::ConnectToServer()
         return true;
     }
 
-    auto serverIp = sf::IpAddress::resolve(Config::Connection::SERVER_IP);
-    if (!serverIp.has_value())
+    const char* ips[] = {
+        Config::Connection::SERVER_IP,
+        Config::Connection::SERVER_IP_LAN
+    };
+
+    for (int i = 0; i < 2; i++)
     {
-        std::cerr << "[CLIENT] IP del servidor invalida: "
-            << Config::Connection::SERVER_IP
-            << std::endl;
-        return false;
+        auto serverIp = sf::IpAddress::resolve(ips[i]);
+        if (!serverIp.has_value())
+        {
+            std::cerr << "[CLIENT] IP del servidor invalida: " << ips[i] << std::endl;
+            continue;
+        }
+
+        if (Connect(*serverIp, Config::Connection::SERVER_PORT))
+        {
+            return true;
+        }
+
+        m_socket.disconnect();
     }
 
-    return Connect(*serverIp, Config::Connection::SERVER_PORT);
+    return false;
 }
 
 void NetworkManager::DisconnectFromServer()

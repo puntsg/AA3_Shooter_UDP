@@ -13,14 +13,31 @@ void LauncherManager::RunLauncher()
     sf::TcpSocket socket;
     socket.setBlocking(true);
 
-    std::optional<sf::IpAddress> serverIp = sf::IpAddress::resolve(Config::Connection::SERVER_IP);
-    if (!serverIp.has_value())
+    const char* ips[] = {
+        Config::Connection::SERVER_IP,
+        Config::Connection::SERVER_IP_LAN
+    };
+
+    bool connected = false;
+    for (int i = 0; i < 2; i++)
     {
-        std::cout << "[LAUNCHER] No se pudo resolver la IP del servidor. Continuando con mapa local." << std::endl;
-        return;
+        std::optional<sf::IpAddress> serverIp = sf::IpAddress::resolve(ips[i]);
+        if (!serverIp.has_value())
+        {
+            continue;
+        }
+
+        if (socket.connect(*serverIp, Config::Connection::SERVER_PORT, sf::milliseconds(1200)) == sf::Socket::Status::Done)
+        {
+            std::cout << "[LAUNCHER] Conectado al servidor " << ips[i] << std::endl;
+            connected = true;
+            break;
+        }
+
+        socket.disconnect();
     }
 
-    if (socket.connect(*serverIp, Config::Connection::SERVER_PORT) != sf::Socket::Status::Done)
+    if (!connected)
     {
         std::cout << "[LAUNCHER] No se pudo conectar al servidor. Continuando con mapa local." << std::endl;
         return;
