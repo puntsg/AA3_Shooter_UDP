@@ -27,6 +27,7 @@ static std::string GetCurrentMapFilename()
 NetworkManager::NetworkManager()
     : m_isRunning(false)
     , m_nextPlayerId(1)
+    , m_threadPool(this, 4)
 {
     m_listener.setBlocking(false);
 }
@@ -75,6 +76,7 @@ void NetworkManager::AcceptNewClients()
             << newClient.ip.toString()
             << std::endl;
 
+        std::lock_guard<std::mutex> lock(m_stateMutex);
         m_sockets.push_back(std::move(newSocket));
         m_clients.push_back(newClient);
     }
@@ -96,7 +98,10 @@ void NetworkManager::ReceiveClientData()
 
         while (status == sf::Socket::Status::Done)
         {
-            ProcessPacket(client, packet);
+            // El main thread manda el paquete al thread pool.
+            const int playerId = client.playerId;
+            m_threadPool.Enqueue(playerId, packet);
+
             packet.clear();
             status = client.socket->receive(packet);
         }
@@ -111,6 +116,20 @@ void NetworkManager::ReceiveClientData()
             --i;
         }
     }
+}
+
+void NetworkManager::ProcessPacketFromPool(int playerId, sf::Packet packet)
+{
+    // Protegemos el estado porque varios threads pueden llegar aqui.
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+
+    ConnectedClient* client = GetClientById(playerId);
+    if (client == nullptr || client->socket == nullptr)
+    {
+        return;
+    }
+
+    ProcessPacket(*client, packet);
 }
 
 void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
@@ -775,6 +794,8 @@ ConnectedClient* NetworkManager::GetClientBySocket(sf::TcpSocket* socket)
 
 void NetworkManager::RemoveDisconnectedClient(int index)
 {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+
     if (index < 0 || index >= static_cast<int>(m_clients.size()))
     {
         return;

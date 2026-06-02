@@ -13,6 +13,7 @@ sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data)
 {
     packet >> data.roomId >> data.playerCount;
     data.players.clear();
+
     for (int i = 0; i < data.playerCount; i++)
     {
         LobbyPlayerInfo p;

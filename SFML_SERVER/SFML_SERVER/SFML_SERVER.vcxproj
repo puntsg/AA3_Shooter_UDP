@@ -142,6 +142,7 @@
     <ClCompile Include="RoomManager.cpp" />
     <ClCompile Include="SHA256.cpp" />
     <ClCompile Include="Source.cpp" />
+    <ClCompile Include="ThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConnectedClient.h" />
@@ -152,6 +153,7 @@
     <ClInclude Include="Room.h" />
     <ClInclude Include="RoomManager.h" />
     <ClInclude Include="SHA256.h" />
+    <ClInclude Include="ThreadPool.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
