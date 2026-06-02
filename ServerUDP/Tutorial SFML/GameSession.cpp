@@ -15,11 +15,11 @@ GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Inf
     // se llena con el hello udp
     states[0].ip = sf::IpAddress::Any;
     states[0].port = 0;
-    states[0].position = sf::Vector2f(RESPAWN_X - 100.f, RESPAWN_Y);
+    states[0].position = sf::Vector2f(P1_START_X, START_Y);
 
     states[1].ip = sf::IpAddress::Any;
     states[1].port = 0;
-    states[1].position = sf::Vector2f(RESPAWN_X + 100.f, RESPAWN_Y);
+    states[1].position = sf::Vector2f(P2_START_X, START_Y);
 
     std::cout << "Room " << roomId << " esperando UDP. P1: " << p1Info.playerId
               << " P2: " << p2Info.playerId << std::endl;
@@ -31,46 +31,59 @@ void GameSession::ProcessMovePacket(int playerId, sf::Packet& packet)
     packet >> moveData;
 
     PlayerState& state = GetState(playerId);
+    float timeSinceLast = state.lastPacketClock.restart().asSeconds();
+
+    if (state.lastValidPacketId != 0 && moveData.packetId <= state.lastValidPacketId)
+        return;
 
     sf::Vector2f newPos(moveData.x, moveData.y);
     
     float dx = std::abs(newPos.x - state.position.x);
     float dy = std::abs(newPos.y - state.position.y);
+    bool bigMove = dx > CHEAT_THRESHOLD || dy > CHEAT_THRESHOLD;
 
-    if (dx > CHEAT_THRESHOLD || dy > CHEAT_THRESHOLD)
+    if (bigMove)
     {
         state.cheatingStrikes++;
-        std::cout << "Cheater alert in " << roomId << " p" << playerId << " alerts given: " << state.cheatingStrikes << std::endl;
+        std::cout << "Movement warning in " << roomId
+            << " p" << playerId
+            << " dx: " << dx
+            << " dy: " << dy
+            << " alerts: " << state.cheatingStrikes
+            << std::endl;
 
-        TransformData reconcileData;
-        reconcileData.packetId = state.lastValidPacketId;
-        reconcileData.dbId = playerIds[(playerIds[0] == playerId) ? 0 : 1];
-        reconcileData.localPlayerId = (playerIds[0] == playerId) ? 0 : 1;
-        reconcileData.x = state.position.x;
-        reconcileData.y = state.position.y;
-        reconcileData.flipped = state.flipped;
+        if (state.cheatingStrikes > MAX_STRIKES)
+            state.cheatingStrikes = MAX_STRIKES;
+    }
+    else if (state.cheatingStrikes > 0)
+    {
+        state.cheatingStrikes--;
+    }
 
-        sf::Packet reconcilePacket;
-        reconcilePacket << PacketType::TRANSFORM << reconcileData;
-        SendToPlayer(playerId, reconcilePacket);
-
-        if (state.cheatingStrikes >= MAX_STRIKES)
-        {
-            int winnerIndex = (playerIds[0] == playerId) ? 1 : 0;
-            FinishGame(playerIds[winnerIndex], true);
-        }
-        return;
+    if (!bigMove && timeSinceLast > 0.f)
+    {
+        state.velocity.x = (newPos.x - state.position.x) / timeSinceLast;
+        state.velocity.y = (newPos.y - state.position.y) / timeSinceLast;
+    }
+    else
+    {
+        state.velocity = sf::Vector2f(0.f, 0.f);
     }
 
     state.position = newPos;
     state.flipped = moveData.flipped;
     state.lastValidPacketId = moveData.packetId;
-    state.lastPacketClock.restart();
 }
 
 void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
 {
     PlayerState& shooter = GetState(playerId);
+    shooter.lastPacketClock.restart();
+
+    std::cout << "[UDP-SHOT] Room " << roomId
+        << " shooter: " << playerId
+        << " pos: " << shooter.position.x << ", " << shooter.position.y
+        << std::endl;
 
     ShootReplicateData replicateData;
     replicateData.position = shooter.position;
@@ -85,6 +98,8 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
 
 void GameSession::ProcessTauntPacket(int playerId)
 {
+    GetState(playerId).lastPacketClock.restart();
+
     sf::Packet tauntPacket;
     tauntPacket << PacketType::PLAYER_TAUNT << playerId;
     SendToOther(playerId, tauntPacket);
@@ -116,6 +131,7 @@ bool GameSession::RegisterPlayerEndpoint(int playerId, const sf::IpAddress& ip, 
     states[index].ip = ip;
     states[index].port = port;
     states[index].ready = true;
+    states[index].disconnected = false;
     states[index].lastPacketClock.restart();
 
     std::cout << "UDP ready p" << playerId << " -> "
@@ -130,9 +146,33 @@ bool GameSession::RegisterPlayerEndpoint(int playerId, const sf::IpAddress& ip, 
     return true;
 }
 
+void GameSession::DisconnectPlayer(int playerId)
+{
+    if (finished)
+        return;
+
+    int winnerId = GetOtherPlayerId(playerId);
+    if (winnerId == -1)
+        return;
+
+    GetState(playerId).disconnected = true;
+    SendPlayerDisconnected(playerId);
+    FinishGame(winnerId, false);
+}
+
 void GameSession::Update(float dt)
 {
-    if (finished || !bothReady)
+    if (finished)
+        return;
+
+    if (!bothReady)
+    {
+        CheckHelloTimeout();
+        return;
+    }
+
+    CheckDisconnects();
+    if (finished)
         return;
 
     PredictPositions(dt);
@@ -187,21 +227,30 @@ void GameSession::BroadcastGameState()
         sf::Packet packet;
         packet << PacketType::TRANSFORM << tData;
 
-        socket.send(packet, states[0].ip, states[0].port);
-        socket.send(packet, states[1].ip, states[1].port);
+        if (states[0].ready && !states[0].disconnected)
+            socket.send(packet, states[0].ip, states[0].port);
+        if (states[1].ready && !states[1].disconnected)
+            socket.send(packet, states[1].ip, states[1].port);
     }
 }
 
 void GameSession::SendToPlayer(int playerId, sf::Packet& packet)
 {
-    int idx = (playerIds[0] == playerId) ? 0 : 1;
+    int idx = GetIndex(playerId);
+    if (idx == -1 || !states[idx].ready || states[idx].disconnected)
+        return;
+
     std::lock_guard<std::mutex> lock(socketMutex);
     socket.send(packet, states[idx].ip, states[idx].port);
 }
 
 void GameSession::SendToOther(int playerId, sf::Packet& packet)
 {
-    int idx = (playerIds[0] == playerId) ? 1 : 0;
+    int otherId = GetOtherPlayerId(playerId);
+    int idx = GetIndex(otherId);
+    if (idx == -1 || !states[idx].ready || states[idx].disconnected)
+        return;
+
     std::lock_guard<std::mutex> lock(socketMutex);
     socket.send(packet, states[idx].ip, states[idx].port);
 }
@@ -213,9 +262,20 @@ void GameSession::HandleHit(int shooterPlayerId)
 
     rival.health--;
 
+    std::cout << "[UDP-HIT] Room " << roomId
+        << " shooter: " << shooterPlayerId
+        << " target: " << playerIds[rivalIndex]
+        << " health: " << rival.health
+        << " lifes: " << rival.lifes
+        << std::endl;
+
     if (rival.health <= 0)
     {
         rival.lifes--;
+        std::cout << "[UDP-LIFE] Player " << playerIds[rivalIndex]
+            << " lost a life. Lifes left: " << rival.lifes
+            << std::endl;
+
         if (rival.lifes <= 0)
         {
             FinishGame(shooterPlayerId, false);
@@ -235,8 +295,10 @@ void GameSession::HandleHit(int shooterPlayerId)
 
     {
         std::lock_guard<std::mutex> lock(socketMutex);
-        socket.send(hitPacket, states[0].ip, states[0].port);
-        socket.send(hitPacket, states[1].ip, states[1].port);
+        if (states[0].ready && !states[0].disconnected)
+            socket.send(hitPacket, states[0].ip, states[0].port);
+        if (states[1].ready && !states[1].disconnected)
+            socket.send(hitPacket, states[1].ip, states[1].port);
     }
 }
 
@@ -246,6 +308,12 @@ void GameSession::RespawnPlayer(int playerId)
     state.health = MAX_HEALTH;
     state.position = sf::Vector2f(RESPAWN_X, RESPAWN_Y);
     state.velocity = sf::Vector2f(0.f, 0.f);
+
+    std::cout << "[UDP-RESPAWN] Player " << playerId
+        << " pos: " << state.position.x << ", " << state.position.y
+        << " health: " << state.health
+        << " lifes: " << state.lifes
+        << std::endl;
 }
 
 void GameSession::PredictPositions(float dt)
@@ -260,11 +328,69 @@ void GameSession::PredictPositions(float dt)
     }
 }
 
+void GameSession::CheckDisconnects()
+{
+    for (int i = 0; i < 2; i++)
+    {
+        if (!states[i].ready || states[i].disconnected)
+            continue;
+
+        float withoutPackets = states[i].lastPacketClock.getElapsedTime().asSeconds();
+        if (withoutPackets < DISCONNECT_TIMEOUT)
+            continue;
+
+        std::cout << "Player " << playerIds[i] << " timeout in room " << roomId << std::endl;
+        DisconnectPlayer(playerIds[i]);
+        return;
+    }
+}
+
+void GameSession::CheckHelloTimeout()
+{
+    if (sessionClock.getElapsedTime().asSeconds() < HELLO_TIMEOUT)
+        return;
+
+    if (states[0].ready && !states[1].ready)
+    {
+        std::cout << "Player " << playerIds[1] << " never joined UDP in room " << roomId << std::endl;
+        DisconnectPlayer(playerIds[1]);
+    }
+    else if (states[1].ready && !states[0].ready)
+    {
+        std::cout << "Player " << playerIds[0] << " never joined UDP in room " << roomId << std::endl;
+        DisconnectPlayer(playerIds[0]);
+    }
+    else if (!states[0].ready && !states[1].ready)
+    {
+        std::cout << "Room " << roomId << " closed because nobody joined UDP" << std::endl;
+        finished = true;
+    }
+}
+
+void GameSession::SendPlayerDisconnected(int playerId)
+{
+    sf::Packet packet;
+    packet << PacketType::PLAYER_DISCONNECTED << playerId;
+
+    std::lock_guard<std::mutex> lock(socketMutex);
+    if (states[0].ready)
+        socket.send(packet, states[0].ip, states[0].port);
+    if (states[1].ready)
+        socket.send(packet, states[1].ip, states[1].port);
+}
+
 void GameSession::FinishGame(int winnerPlayerId, bool cheating)
 {
+    if (finished)
+        return;
+
     finished = true;
 
-    int loserIndex = (playerIds[0] == winnerPlayerId) ? 1 : 0;
+    int winnerIndex = GetIndex(winnerPlayerId);
+    if (winnerIndex == -1)
+        return;
+
+    int loserIndex = (winnerIndex == 0) ? 1 : 0;
     int loserPlayerId = playerIds[loserIndex];
 
     EndgameData endData;
@@ -277,14 +403,38 @@ void GameSession::FinishGame(int winnerPlayerId, bool cheating)
 
     {
         std::lock_guard<std::mutex> lock(socketMutex);
-        socket.send(endPacket, states[0].ip, states[0].port);
-        socket.send(endPacket, states[1].ip, states[1].port);
+        if (states[0].ready)
+            socket.send(endPacket, states[0].ip, states[0].port);
+        if (states[1].ready)
+            socket.send(endPacket, states[1].ip, states[1].port);
     }
 
-    std::cout << "Room " << roomId << " finishe. Winner: " << winnerPlayerId << std::endl;
+    std::cout << "[UDP-END] Room " << roomId
+        << " winner: " << winnerPlayerId
+        << " loser: " << loserPlayerId
+        << " cheating: " << cheating
+        << std::endl;
 }
 
 PlayerState& GameSession::GetState(int playerId)
 {
     return (playerIds[0] == playerId) ? states[0] : states[1];
+}
+
+int GameSession::GetIndex(int playerId) const
+{
+    if (playerIds[0] == playerId)
+        return 0;
+    if (playerIds[1] == playerId)
+        return 1;
+    return -1;
+}
+
+int GameSession::GetOtherPlayerId(int playerId) const
+{
+    int idx = GetIndex(playerId);
+    if (idx == -1)
+        return -1;
+
+    return playerIds[(idx == 0) ? 1 : 0];
 }

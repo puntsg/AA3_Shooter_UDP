@@ -9,7 +9,7 @@
 
 static constexpr const char* MAPS_DIR = "maps/";
 // ip del pc servidor
-static constexpr const char* GAME_SERVER_IP = "--";
+static constexpr const char* GAME_SERVER_IP = "192.168.0.12";
 static constexpr unsigned short GAME_SERVER_TCP_PORT = 55001;
 static constexpr unsigned short GAME_SERVER_UDP_PORT = 55002;
 

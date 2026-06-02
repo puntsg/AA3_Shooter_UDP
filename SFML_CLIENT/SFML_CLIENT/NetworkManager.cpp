@@ -151,7 +151,13 @@ void NetworkManager::ClearConnections()
 bool NetworkManager::SendUdpHelloReady()
 {
     auto ip = sf::IpAddress::resolve(m_clientState.gameServerIp);
-    sf::IpAddress gameServerIp = ip.value();
+    if (!ip.has_value())
+    {
+        std::cerr << "[CLIENT-UDP] IP del GameServer invalida: "
+            << m_clientState.gameServerIp
+            << std::endl;
+        return false;
+    }
 
     if (!m_udpSocketReady)
     {
@@ -168,7 +174,7 @@ bool NetworkManager::SendUdpHelloReady()
     sf::Packet packet;
     packet << PacketType::UDP_HELLO << helloData;
 
-    m_udpSocket.send(packet, gameServerIp, m_clientState.gameServerUdpPort);
+    m_udpSocket.send(packet, *ip, m_clientState.gameServerUdpPort);
 
     std::cout << "[CLIENT-UDP] hello -> "
         << m_clientState.gameServerIp << ":" 
