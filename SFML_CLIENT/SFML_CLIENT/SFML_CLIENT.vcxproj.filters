@@ -164,4 +164,8 @@
       <Filter>Archivos de recursos</Filter>
     </Image>
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="maps\map_v1.txt" />
+    <Text Include="maps\map_version.txt" />
+  </ItemGroup>
 </Project>

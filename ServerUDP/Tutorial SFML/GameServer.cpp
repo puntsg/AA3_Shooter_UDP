@@ -20,7 +20,7 @@ bool GameServer::Start()
         std::cerr << "Fail bind UDP " << UDP_GAME_PORT << std::endl;
         return false;
     }
-    udpSocket.setBlocking(true);
+    udpSocket.setBlocking(false);
 
     if (tcpListener.listen(TCP_LISTEN_PORT) != sf::Socket::Status::Done)
     {
@@ -100,6 +100,12 @@ void GameServer::UdpReceiveLoop()
         {
             std::lock_guard<std::mutex> lock(udpSocketMutex);
             status = udpSocket.receive(packet, senderIp, senderPort);
+        }
+
+        if (status == sf::Socket::Status::NotReady)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
         }
 
         if (status == sf::Socket::Status::Done)
@@ -232,6 +238,9 @@ void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short se
         break;
     case PLAYER_TAUNT:
         session->ProcessTauntPacket(playerId);
+        break;
+    case DISCONNECT:
+        session->DisconnectPlayer(playerId);
         break;
     default:
         break;
