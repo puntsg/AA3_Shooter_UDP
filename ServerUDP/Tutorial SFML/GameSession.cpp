@@ -31,36 +31,43 @@ void GameSession::ProcessMovePacket(int playerId, sf::Packet& packet)
     packet >> moveData;
 
     PlayerState& state = GetState(playerId);
-    state.lastPacketClock.restart();
+    float timeSinceLast = state.lastPacketClock.restart().asSeconds();
+
+    if (state.lastValidPacketId != 0 && moveData.packetId <= state.lastValidPacketId)
+        return;
 
     sf::Vector2f newPos(moveData.x, moveData.y);
     
     float dx = std::abs(newPos.x - state.position.x);
     float dy = std::abs(newPos.y - state.position.y);
+    bool bigMove = dx > CHEAT_THRESHOLD || dy > CHEAT_THRESHOLD;
 
-    if (dx > CHEAT_THRESHOLD || dy > CHEAT_THRESHOLD)
+    if (bigMove)
     {
         state.cheatingStrikes++;
-        std::cout << "Cheater alert in " << roomId << " p" << playerId << " alerts given: " << state.cheatingStrikes << std::endl;
+        std::cout << "Movement warning in " << roomId
+            << " p" << playerId
+            << " dx: " << dx
+            << " dy: " << dy
+            << " alerts: " << state.cheatingStrikes
+            << std::endl;
 
-        TransformData reconcileData;
-        reconcileData.packetId = state.lastValidPacketId;
-        reconcileData.dbId = playerIds[(playerIds[0] == playerId) ? 0 : 1];
-        reconcileData.localPlayerId = (playerIds[0] == playerId) ? 0 : 1;
-        reconcileData.x = state.position.x;
-        reconcileData.y = state.position.y;
-        reconcileData.flipped = state.flipped;
+        if (state.cheatingStrikes > MAX_STRIKES)
+            state.cheatingStrikes = MAX_STRIKES;
+    }
+    else if (state.cheatingStrikes > 0)
+    {
+        state.cheatingStrikes--;
+    }
 
-        sf::Packet reconcilePacket;
-        reconcilePacket << PacketType::TRANSFORM << reconcileData;
-        SendToPlayer(playerId, reconcilePacket);
-
-        if (state.cheatingStrikes >= MAX_STRIKES)
-        {
-            int winnerIndex = (playerIds[0] == playerId) ? 1 : 0;
-            FinishGame(playerIds[winnerIndex], true);
-        }
-        return;
+    if (!bigMove && timeSinceLast > 0.f)
+    {
+        state.velocity.x = (newPos.x - state.position.x) / timeSinceLast;
+        state.velocity.y = (newPos.y - state.position.y) / timeSinceLast;
+    }
+    else
+    {
+        state.velocity = sf::Vector2f(0.f, 0.f);
     }
 
     state.position = newPos;
@@ -72,6 +79,11 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
 {
     PlayerState& shooter = GetState(playerId);
     shooter.lastPacketClock.restart();
+
+    std::cout << "[UDP-SHOT] Room " << roomId
+        << " shooter: " << playerId
+        << " pos: " << shooter.position.x << ", " << shooter.position.y
+        << std::endl;
 
     ShootReplicateData replicateData;
     replicateData.position = shooter.position;
@@ -250,9 +262,20 @@ void GameSession::HandleHit(int shooterPlayerId)
 
     rival.health--;
 
+    std::cout << "[UDP-HIT] Room " << roomId
+        << " shooter: " << shooterPlayerId
+        << " target: " << playerIds[rivalIndex]
+        << " health: " << rival.health
+        << " lifes: " << rival.lifes
+        << std::endl;
+
     if (rival.health <= 0)
     {
         rival.lifes--;
+        std::cout << "[UDP-LIFE] Player " << playerIds[rivalIndex]
+            << " lost a life. Lifes left: " << rival.lifes
+            << std::endl;
+
         if (rival.lifes <= 0)
         {
             FinishGame(shooterPlayerId, false);
@@ -285,6 +308,12 @@ void GameSession::RespawnPlayer(int playerId)
     state.health = MAX_HEALTH;
     state.position = sf::Vector2f(RESPAWN_X, RESPAWN_Y);
     state.velocity = sf::Vector2f(0.f, 0.f);
+
+    std::cout << "[UDP-RESPAWN] Player " << playerId
+        << " pos: " << state.position.x << ", " << state.position.y
+        << " health: " << state.health
+        << " lifes: " << state.lifes
+        << std::endl;
 }
 
 void GameSession::PredictPositions(float dt)
@@ -352,6 +381,9 @@ void GameSession::SendPlayerDisconnected(int playerId)
 
 void GameSession::FinishGame(int winnerPlayerId, bool cheating)
 {
+    if (finished)
+        return;
+
     finished = true;
 
     int winnerIndex = GetIndex(winnerPlayerId);
@@ -377,7 +409,11 @@ void GameSession::FinishGame(int winnerPlayerId, bool cheating)
             socket.send(endPacket, states[1].ip, states[1].port);
     }
 
-    std::cout << "Room " << roomId << " finishe. Winner: " << winnerPlayerId << std::endl;
+    std::cout << "[UDP-END] Room " << roomId
+        << " winner: " << winnerPlayerId
+        << " loser: " << loserPlayerId
+        << " cheating: " << cheating
+        << std::endl;
 }
 
 PlayerState& GameSession::GetState(int playerId)
