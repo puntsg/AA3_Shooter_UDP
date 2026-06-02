@@ -12,8 +12,6 @@
 #include "ProtocolData.h"
 #include "PacketTypes.h"
 
-//Inventados eh
-#define TCP_LISTEN_PORT 55001
 #define UDP_GAME_PORT 55002
 
 class GameServer
@@ -26,7 +24,6 @@ public:
     void Stop();
 
 private:
-    void TcpListenerLoop();
     void UdpReceiveLoop();
     void UpdateLoop();
 
@@ -34,7 +31,6 @@ private:
     void RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short senderPort, sf::Packet& packet);
     void CleanFinishedSessions();
 
-    sf::TcpListener tcpListener;
     sf::UdpSocket udpSocket;
     std::mutex udpSocketMutex;  // protege udpSocket entre UdpReceiveLoop y UpdateLoop
 
@@ -43,7 +39,6 @@ private:
 
     ThreadPool pool;
 
-    std::thread tcpThread;
     std::thread udpThread;
     std::thread updateThread;
 

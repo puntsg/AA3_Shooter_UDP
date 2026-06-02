@@ -8,10 +8,8 @@
 #include <SFML/System.hpp>
 
 static constexpr const char* MAPS_DIR = "maps/";
-// Hardcoded de moment. Per jugar fora de LAN, SERVER_IP del client i aquesta IP publica han de ser la IP publica de casa.
-static constexpr const char* GAME_SERVER_PUBLIC_IP = "37.223.141.102";
+static constexpr const char* GAME_SERVER_PUBLIC_IP = "127.0.0.1";
 static constexpr const char* GAME_SERVER_LINK_IP = "127.0.0.1";
-static constexpr unsigned short GAME_SERVER_TCP_PORT = 55001;
 static constexpr unsigned short GAME_SERVER_UDP_PORT = 55002;
 
 // Busca txt devuelve nombre
@@ -515,14 +513,13 @@ bool NetworkManager::SendSessionToGameServer(const StartGameData& startData, std
         return false;
     }
 
-    sf::TcpSocket gameServerSocket;
-    gameServerSocket.setBlocking(true);
-
-    if (gameServerSocket.connect(*gameServerIp, GAME_SERVER_TCP_PORT, sf::milliseconds(1500)) != sf::Socket::Status::Done)
+    sf::UdpSocket gameServerSocket;
+    if (gameServerSocket.bind(sf::Socket::AnyPort) != sf::Socket::Status::Done)
     {
-        message = "No se pudo conectar con el Game Server.";
+        message = "No se pudo abrir UDP para hablar con el Game Server.";
         return false;
     }
+    gameServerSocket.setBlocking(false);
 
     SessionStartData sessionData;
     sessionData.roomId = startData.roomId;
@@ -534,26 +531,35 @@ bool NetworkManager::SendSessionToGameServer(const StartGameData& startData, std
     requestPacket << static_cast<short>(PacketType::SESSION_START_REQUEST);
     requestPacket << sessionData;
 
-    gameServerSocket.send(requestPacket);
+    if (gameServerSocket.send(requestPacket, *gameServerIp, GAME_SERVER_UDP_PORT) != sf::Socket::Status::Done)
+    {
+        message = "No se pudo enviar la sesion al Game Server.";
+        gameServerSocket.unbind();
+        return false;
+    }
 
-    gameServerSocket.setBlocking(false);
     sf::Clock waitClock;
 
     // espera corta
     while (waitClock.getElapsedTime().asMilliseconds() < 1500)
     {
         sf::Packet responsePacket;
-        sf::Socket::Status status = gameServerSocket.receive(responsePacket);
+        std::optional<sf::IpAddress> senderIp;
+        unsigned short senderPort = 0;
+        sf::Socket::Status status = gameServerSocket.receive(responsePacket, senderIp, senderPort);
 
         if (status == sf::Socket::Status::Done)
         {
             PacketType responseType = PacketType::NONE;
             responsePacket >> responseType;
 
+            if (responseType != PacketType::SESSION_START_RESPONSE)
+                continue;
+
             SessionStartResponseData responseData;
             responsePacket >> responseData;
             message = responseData.message;
-            gameServerSocket.disconnect();
+            gameServerSocket.unbind();
             return responseData.success;
         }
 
@@ -561,7 +567,7 @@ bool NetworkManager::SendSessionToGameServer(const StartGameData& startData, std
     }
 
     message = "El Game Server no respondio a tiempo.";
-    gameServerSocket.disconnect();
+    gameServerSocket.unbind();
     return false;
 }
 

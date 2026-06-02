@@ -2,6 +2,9 @@
 #include <iostream>
 #include <cmath>
 
+static constexpr float SHOT_MAX_DIST = 430.f;
+static constexpr float SHOT_HIT_HEIGHT = 32.f;
+
 GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket, std::mutex& socketMutex)
     : roomId(roomId)
     , socket(socket)
@@ -80,20 +83,34 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
     PlayerState& shooter = GetState(playerId);
     shooter.lastPacketClock.restart();
 
+    ShootReplicateData shotData;
+    packet >> shotData;
+
+    if (!packet)
+    {
+        shotData.position = shooter.position;
+        shotData.flipped = shooter.flipped;
+    }
+
     std::cout << "[UDP-SHOT] Room " << roomId
         << " shooter: " << playerId
-        << " pos: " << shooter.position.x << ", " << shooter.position.y
+        << " pos: " << shotData.position.x << ", " << shotData.position.y
         << std::endl;
 
     ShootReplicateData replicateData;
-    replicateData.position = shooter.position;
-    replicateData.flipped = shooter.flipped;
+    replicateData.position = shotData.position;
+    replicateData.flipped = shotData.flipped;
 
     sf::Packet replicatePacket;
     replicatePacket << PacketType::SHOOT_REPLICATE << replicateData;
     SendToOther(playerId, replicatePacket);
 
-    HandleHit(playerId);
+    if (ShotHitsPlayer(playerId, shotData))
+        HandleHit(playerId);
+    else
+        std::cout << "[UDP-MISS] Room " << roomId
+            << " shooter: " << playerId
+            << std::endl;
 }
 
 void GameSession::ProcessTauntPacket(int playerId)
@@ -259,6 +276,30 @@ void GameSession::SendToOther(int playerId, sf::Packet& packet)
 
     std::lock_guard<std::mutex> lock(socketMutex);
     socket.send(packet, states[idx].ip, states[idx].port);
+}
+
+bool GameSession::ShotHitsPlayer(int shooterPlayerId, const ShootReplicateData& shot) const
+{
+    int shooterIndex = GetIndex(shooterPlayerId);
+    if (shooterIndex == -1)
+        return false;
+
+    int targetIndex = (shooterIndex == 0) ? 1 : 0;
+    const PlayerState& target = states[targetIndex];
+
+    if (!target.ready || target.disconnected)
+        return false;
+
+    float dir = shot.flipped ? -1.f : 1.f;
+    float dx = target.position.x - shot.position.x;
+    if (dx * dir < 0.f)
+        return false;
+
+    if (std::abs(dx) > SHOT_MAX_DIST)
+        return false;
+
+    float dy = std::abs(target.position.y - shot.position.y);
+    return dy <= SHOT_HIT_HEIGHT;
 }
 
 void GameSession::HandleHit(int shooterPlayerId)

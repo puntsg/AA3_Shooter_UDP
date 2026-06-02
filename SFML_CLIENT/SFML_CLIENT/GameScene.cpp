@@ -52,6 +52,10 @@ void GameScene::OnEnter()
     m_tauntCooldown = 0.f;
     m_tauntTextTime = 0.f;
     m_tauntText.clear();
+    m_localHealth = MAX_HEALTH;
+    m_localLifes = MAX_LIFES;
+    m_rivalHealth = MAX_HEALTH;
+    m_rivalLifes = MAX_LIFES;
 
     m_soundLoaded = m_tauntBuffer.loadFromFile(TAUNT_SOUND);
     if (m_soundLoaded)
@@ -91,6 +95,12 @@ void GameScene::Update(float dt)
 
         cs.hasTaunt = false;
         cs.tauntPlayerId = -1;
+    }
+
+    if (cs.hasPlayerHit)
+    {
+        ApplyPlayerHit(cs.lastPlayerHit);
+        cs.hasPlayerHit = false;
     }
 
     // Apply remote player transforms from GameServer
@@ -140,11 +150,15 @@ void GameScene::Update(float dt)
     // Forward any bullet the player just spawned
     if (localPlayer->pendingBullet != nullptr)
     {
+        ShootReplicateData shotData;
+        shotData.position = localPlayer->pendingBullet->GetTransform()->position;
+        shotData.flipped = localPlayer->animRenderer->flipped;
+
         bullets.push_back(localPlayer->pendingBullet);
         localPlayer->pendingBullet = nullptr;
 
         sf::Packet shootPacket;
-        shootPacket << PacketType::SHOOT;
+        shootPacket << PacketType::SHOOT << shotData;
         NM.SendUdp(shootPacket);
     }
 
@@ -277,6 +291,36 @@ void GameScene::PlayTaunt(int taunterId)
         m_tauntSound->play();
 }
 
+void GameScene::ApplyPlayerHit(const PlayerHitData& data)
+{
+    ClientState& cs = NM.GetClientState();
+    Player* target = (data.targetPlayerId == cs.playerId) ? localPlayer : remotePlayer;
+
+    if (data.targetPlayerId == cs.playerId)
+    {
+        m_localHealth = data.newHealth;
+        m_localLifes = data.newLifes;
+    }
+    else
+    {
+        m_rivalHealth = data.newHealth;
+        m_rivalLifes = data.newLifes;
+    }
+
+    std::cout << "[CLIENT] Hit player " << data.targetPlayerId
+        << " hp: " << data.newHealth
+        << " vidas: " << data.newLifes
+        << std::endl;
+
+    if (target != nullptr && data.newHealth == MAX_HEALTH)
+    {
+        target->GetTransform()->position = data.respawnPosition;
+        target->velocity = sf::Vector2f(0.f, 0.f);
+        if (target->animRenderer && target->animRenderer->sprite.has_value())
+            target->animRenderer->sprite->setPosition(data.respawnPosition);
+    }
+}
+
 void GameScene::Render(sf::RenderWindow& window)
 {
     tileMap->render(window);
@@ -286,6 +330,19 @@ void GameScene::Render(sf::RenderWindow& window)
 
     remotePlayer->animRenderer->render(window);
     localPlayer->animRenderer->render(window);
+
+    if (m_fontLoaded)
+    {
+        sf::Text localHud(m_font, "Tu HP:" + std::to_string(m_localHealth) + " Vidas:" + std::to_string(m_localLifes), 16);
+        localHud.setFillColor(sf::Color::Cyan);
+        localHud.setPosition({ 20.f, 18.f });
+        window.draw(localHud);
+
+        sf::Text rivalHud(m_font, "Rival HP:" + std::to_string(m_rivalHealth) + " Vidas:" + std::to_string(m_rivalLifes), 16);
+        rivalHud.setFillColor(sf::Color::Red);
+        rivalHud.setPosition({ 520.f, 18.f });
+        window.draw(rivalHud);
+    }
 
     if (m_tauntTextTime > 0.f && m_fontLoaded)
     {

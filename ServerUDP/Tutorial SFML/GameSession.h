@@ -60,6 +60,7 @@ private:
     void SendToPlayer(int playerId, sf::Packet& packet);
     void SendToOther(int playerId, sf::Packet& packet);
 
+    bool ShotHitsPlayer(int shooterPlayerId, const ShootReplicateData& shot) const;
     void HandleHit(int shooterPlayerId);
     void RespawnPlayer(int playerId);
 

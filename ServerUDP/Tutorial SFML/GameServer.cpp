@@ -22,20 +22,12 @@ bool GameServer::Start()
     }
     udpSocket.setBlocking(false);
 
-    if (tcpListener.listen(TCP_LISTEN_PORT) != sf::Socket::Status::Done)
-    {
-        std::cerr << "Fail listen TCP " << TCP_LISTEN_PORT << std::endl;
-        return false;
-    }
-
     running = true;
 
-    std::cout << "TCP ON: " << TCP_LISTEN_PORT
-        << " UDP ON: " << UDP_GAME_PORT
+    std::cout << "UDP ON: " << UDP_GAME_PORT
         << " Threads Num: " << pool.Size()
         << std::endl;
 
-    tcpThread = std::thread(&GameServer::TcpListenerLoop, this);
     udpThread = std::thread(&GameServer::UdpReceiveLoop, this);
     updateThread = std::thread(&GameServer::UpdateLoop, this);
 
@@ -46,46 +38,9 @@ void GameServer::Stop()
 {
     running = false;
     udpSocket.unbind();
-    tcpListener.close();
 
-    if (tcpThread.joinable()) tcpThread.join();
     if (udpThread.joinable()) udpThread.join();
     if (updateThread.joinable()) updateThread.join();
-}
-
-void GameServer::TcpListenerLoop()
-{
-    tcpListener.setBlocking(true);
-
-    while (running)
-    {
-        sf::TcpSocket bootstrapSocket;
-        if (tcpListener.accept(bootstrapSocket) != sf::Socket::Status::Done)
-            continue;
-
-        std::cout << "TCP link gotten" << std::endl;
-
-        sf::Packet packet;
-        if (bootstrapSocket.receive(packet) == sf::Socket::Status::Done)
-        {
-            PacketType type = NONE;
-            packet >> type;
-
-            // viene del matchmaking
-            if (type == SESSION_START_REQUEST)
-            {
-                SessionStartResponseData response;
-                HandleSessionStart(packet, response);
-
-                sf::Packet responsePacket;
-                responsePacket << PacketType::SESSION_START_RESPONSE << response;
-                if (bootstrapSocket.send(responsePacket) != sf::Socket::Status::Done)
-                    std::cerr << "Fail sending session response" << std::endl;
-            }
-        }
-
-        bootstrapSocket.disconnect();
-    }
 }
 
 void GameServer::UdpReceiveLoop()
@@ -183,6 +138,21 @@ void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short se
 {
     PacketType type = NONE;
     packet >> type;
+
+    if (type == SESSION_START_REQUEST)
+    {
+        SessionStartResponseData response;
+        HandleSessionStart(packet, response);
+
+        sf::Packet responsePacket;
+        responsePacket << PacketType::SESSION_START_RESPONSE << response;
+
+        std::lock_guard<std::mutex> lock(udpSocketMutex);
+        if (udpSocket.send(responsePacket, senderIp, senderPort) != sf::Socket::Status::Done)
+            std::cerr << "Fail sending session response" << std::endl;
+
+        return;
+    }
 
     if (type == UDP_HELLO)
     {

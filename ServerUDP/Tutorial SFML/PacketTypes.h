@@ -57,7 +57,7 @@ enum PacketType
 
     ERROR_MESSAGE,
 
-    // TCP del matchmaking
+    // Bootstrap to Game Server
     SESSION_START_REQUEST = 100,
     SESSION_START_RESPONSE = 101,
 
