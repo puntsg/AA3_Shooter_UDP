@@ -1,4 +1,5 @@
 #include "NetworkManager.h"
+#include "Constants.h"
 #include <iostream>
 
 NetworkManager::NetworkManager()
@@ -15,7 +16,17 @@ bool NetworkManager::ConnectToServer()
         std::cout << "Ya conectado al servidor" << std::endl;
         return true;
     }
-    return Connect(SERVER_IP, SERVER_PORT);
+
+    auto serverIp = sf::IpAddress::resolve(Config::Connection::SERVER_IP);
+    if (!serverIp.has_value())
+    {
+        std::cerr << "[CLIENT] IP del servidor invalida: "
+            << Config::Connection::SERVER_IP
+            << std::endl;
+        return false;
+    }
+
+    return Connect(*serverIp, Config::Connection::SERVER_PORT);
 }
 
 void NetworkManager::DisconnectFromServer()

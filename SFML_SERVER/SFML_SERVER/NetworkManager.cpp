@@ -8,8 +8,9 @@
 #include <SFML/System.hpp>
 
 static constexpr const char* MAPS_DIR = "maps/";
-// ip del pc servidor
-static constexpr const char* GAME_SERVER_IP = "192.168.0.12";
+// Hardcoded de moment. Per jugar fora de LAN, SERVER_IP del client i aquesta IP publica han de ser la IP publica de casa.
+static constexpr const char* GAME_SERVER_PUBLIC_IP = "37.223.141.102";
+static constexpr const char* GAME_SERVER_LINK_IP = "127.0.0.1";
 static constexpr unsigned short GAME_SERVER_TCP_PORT = 55001;
 static constexpr unsigned short GAME_SERVER_UDP_PORT = 55002;
 
@@ -507,12 +508,17 @@ void NetworkManager::SendErrorMessage(ConnectedClient& client, const std::string
 
 bool NetworkManager::SendSessionToGameServer(const StartGameData& startData, std::string& message)
 {
-    sf::IpAddress gameServerIp(192, 168, 0, 12);
+    auto gameServerIp = sf::IpAddress::resolve(GAME_SERVER_LINK_IP);
+    if (!gameServerIp.has_value())
+    {
+        message = "IP del Game Server invalida.";
+        return false;
+    }
 
     sf::TcpSocket gameServerSocket;
     gameServerSocket.setBlocking(true);
 
-    if (gameServerSocket.connect(gameServerIp, GAME_SERVER_TCP_PORT, sf::milliseconds(1500)) != sf::Socket::Status::Done)
+    if (gameServerSocket.connect(*gameServerIp, GAME_SERVER_TCP_PORT, sf::milliseconds(1500)) != sf::Socket::Status::Done)
     {
         message = "No se pudo conectar con el Game Server.";
         return false;
@@ -627,7 +633,7 @@ void NetworkManager::TryStartGame(const std::string& roomId)
     StartGameData startData;
     startData.roomId = room->roomId;
     startData.playerCount = static_cast<short>(room->playerIds.size());
-    startData.gameServerIp = GAME_SERVER_IP;
+    startData.gameServerIp = GAME_SERVER_PUBLIC_IP;
     startData.gameServerUdpPort = GAME_SERVER_UDP_PORT;
 
     for (int playerId : room->playerIds)

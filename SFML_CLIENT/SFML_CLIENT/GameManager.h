@@ -125,5 +125,5 @@ private:
     static constexpr int   MAX_LIFES        = 3;
     static constexpr const char* VERSION_FILE = "maps/map_version.txt";
     static constexpr const char* FALLBACK_MAP = "maps/map_v1.txt";
-    static constexpr const char* TAUNT_SOUND  = "assets/taunt.wav";
+    static constexpr const char* TAUNT_SOUND  = "assets/Burla.mp3";
 };

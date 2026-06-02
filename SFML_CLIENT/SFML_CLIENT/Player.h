@@ -14,6 +14,7 @@ public:
     sf::Color color = sf::Color::White;
     bool isSpectator = false;
     bool isLocal = false;
+    bool inputLocked = false;
 
     Player();
     Player(int _id, std::string _name, int _score, sf::Color _color, bool _isLocal);

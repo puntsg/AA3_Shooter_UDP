@@ -102,7 +102,13 @@ void GameSession::ProcessTauntPacket(int playerId)
 
     sf::Packet tauntPacket;
     tauntPacket << PacketType::PLAYER_TAUNT << playerId;
-    SendToOther(playerId, tauntPacket);
+
+    std::lock_guard<std::mutex> lock(socketMutex);
+    for (int i = 0; i < 2; i++)
+    {
+        if (states[i].ready && !states[i].disconnected)
+            socket.send(tauntPacket, states[i].ip, states[i].port);
+    }
 }
 
 void GameSession::ProcessReadyPacket(int playerId)

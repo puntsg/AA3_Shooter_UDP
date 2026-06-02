@@ -2,6 +2,7 @@
 #include "NetworkManager.h"
 #include "SceneManager.h"
 #include "SpriteRenderer.h"
+#include "Constants.h"
 #include <iostream>
 
 static const sf::Vector2f P1_START_POS(160.f, 240.f);
@@ -47,13 +48,29 @@ void GameScene::OnEnter()
     m_sendTimer     = 0.f;
     m_packetSeqId   = 0;
     m_gameOverTimer = 0.f;
+    m_tauntLock     = 0.f;
+    m_tauntCooldown = 0.f;
+    m_tauntTextTime = 0.f;
+    m_tauntText.clear();
+
+    m_soundLoaded = m_tauntBuffer.loadFromFile(TAUNT_SOUND);
+    if (m_soundLoaded)
+        m_tauntSound.emplace(m_tauntBuffer);
+
+    m_fontLoaded = m_font.openFromFile(Config::Assets::FONT_PATH);
+    if (!m_fontLoaded)
+        m_fontLoaded = m_font.openFromFile(Config::Assets::FONT_PATH_FALLBACK);
 
     NM.SendUdpHelloReady();
 }
 
 void GameScene::HandleEvent(const sf::Event& event)
 {
-    // Input handled inside Player::Update()
+    if (const auto* key = event.getIf<sf::Event::KeyPressed>())
+    {
+        if (key->code == sf::Keyboard::Key::T)
+            SendTaunt();
+    }
 }
 
 void GameScene::Update(float dt)
@@ -61,6 +78,20 @@ void GameScene::Update(float dt)
     NM.ReceiveUdpData();
 
     ClientState& cs = NM.GetClientState();
+
+    if (m_tauntCooldown > 0.f)
+        m_tauntCooldown -= dt;
+    if (m_tauntTextTime > 0.f)
+        m_tauntTextTime -= dt;
+
+    if (cs.hasTaunt)
+    {
+        if (cs.tauntPlayerId != cs.playerId || m_tauntTextTime <= 0.f)
+            PlayTaunt(cs.tauntPlayerId);
+
+        cs.hasTaunt = false;
+        cs.tauntPlayerId = -1;
+    }
 
     // Apply remote player transforms from GameServer
     for (const TransformData& t : cs.incomingTransforms)
@@ -97,6 +128,11 @@ void GameScene::Update(float dt)
             HandleGameEnd();
         return;
     }
+
+    if (m_tauntLock > 0.f)
+        m_tauntLock -= dt;
+
+    localPlayer->inputLocked = m_tauntLock > 0.f;
 
     // Update local player (input + physics)
     localPlayer->Update(dt);
@@ -213,6 +249,34 @@ void GameScene::SendTransform()
     NM.SendUdp(packet);
 }
 
+void GameScene::SendTaunt()
+{
+    if (m_tauntCooldown > 0.f)
+        return;
+
+    m_tauntCooldown = TAUNT_COOLDOWN;
+    PlayTaunt(NM.GetClientState().playerId);
+
+    sf::Packet packet;
+    packet << PacketType::PLAYER_TAUNT;
+    NM.SendUdp(packet);
+}
+
+void GameScene::PlayTaunt(int taunterId)
+{
+    ClientState& cs = NM.GetClientState();
+    bool mine = taunterId == cs.playerId;
+
+    m_tauntText = mine ? "Te estas burlando!" : "El rival se esta burlando!";
+    m_tauntTextTime = TAUNT_TEXT_TIME;
+
+    if (mine)
+        m_tauntLock = TAUNT_LOCK_TIME;
+
+    if (m_soundLoaded && m_tauntSound)
+        m_tauntSound->play();
+}
+
 void GameScene::Render(sf::RenderWindow& window)
 {
     tileMap->render(window);
@@ -222,6 +286,14 @@ void GameScene::Render(sf::RenderWindow& window)
 
     remotePlayer->animRenderer->render(window);
     localPlayer->animRenderer->render(window);
+
+    if (m_tauntTextTime > 0.f && m_fontLoaded)
+    {
+        sf::Text text(m_font, m_tauntText, 24);
+        text.setFillColor(sf::Color::Yellow);
+        text.setPosition({ 240.f, 80.f });
+        window.draw(text);
+    }
 }
 
 void GameScene::OnExit()
