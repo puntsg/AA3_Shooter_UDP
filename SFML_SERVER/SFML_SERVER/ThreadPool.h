@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Network.hpp>
+#include <condition_variable>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -35,5 +36,6 @@ private:
     std::vector<std::thread> threads;
     std::queue<Task> tasks;
     std::mutex tasksMutex;
+    std::condition_variable condition;
     bool stopping;
 };
