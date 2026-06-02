@@ -1,9 +1,9 @@
 #include "ThreadPool.h"
 #include "NetworkManager.h"
-#include <chrono>
 
 ThreadPool::ThreadPool(NetworkManager* networkManager, int numThreads)
-    : networkManager(networkManager), stopping(false)
+    : networkManager(networkManager)
+    , stopping(false)
 {
     if (numThreads <= 0)
     {
@@ -22,6 +22,8 @@ ThreadPool::~ThreadPool()
         std::lock_guard<std::mutex> lock(tasksMutex);
         stopping = true;
     }
+
+    condition.notify_all();
 
     for (std::thread& thread : threads)
     {
@@ -48,6 +50,8 @@ void ThreadPool::Enqueue(int playerId, sf::Packet packet)
 
         tasks.push(task);
     }
+
+    condition.notify_one();
 }
 
 int ThreadPool::Size() const
@@ -60,10 +64,15 @@ void ThreadPool::Worker()
     while (true)
     {
         Task task;
-        bool hasTask = false;
 
         {
-            std::lock_guard<std::mutex> lock(tasksMutex);
+            std::unique_lock<std::mutex> lock(tasksMutex);
+
+            // El thread duerme aqui hasta que llega un paquete
+            while (tasks.empty() && !stopping)
+            {
+                condition.wait(lock);
+            }
 
             if (stopping && tasks.empty())
             {
@@ -74,13 +83,9 @@ void ThreadPool::Worker()
             {
                 task = tasks.front();
                 tasks.pop();
-                hasTask = true;
             }
         }
 
-        if (hasTask)
-        {
-            networkManager->ProcessPacketFromPool(task.playerId, task.packet);
-        }
+        networkManager->ProcessPacketFromPool(task.playerId, task.packet);
     }
 }
