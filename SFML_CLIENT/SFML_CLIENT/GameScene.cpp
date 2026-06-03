@@ -424,7 +424,7 @@ void GameScene::OnExit()
     for (Bullet* b : bullets) delete b;
     bullets.clear();
 
-    NM.ClearConnections();
+    NM.ClearGameNetworkState();
 }
 
 void GameScene::HandleGameEnd()
