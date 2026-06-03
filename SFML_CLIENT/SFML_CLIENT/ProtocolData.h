@@ -39,14 +39,17 @@ struct TransformData
     float x           = 0.f;
     float y           = 0.f;
     bool flipped      = false;
+    float spriteStartX = 0.f, spriteStartY = 0.f, spriteEndX = 0.f, spriteEndY = 0.f;
 };
 inline sf::Packet& operator<<(sf::Packet& packet, const TransformData& data)
 {
-    return packet << data.packetId << data.dbId << data.localPlayerId << data.x << data.y << data.flipped;
+    return packet << data.packetId << data.dbId << data.localPlayerId << data.x << data.y << data.flipped
+        << data.spriteStartX << data.spriteStartY << data.spriteEndX << data.spriteEndY;
 }
 inline sf::Packet& operator>>(sf::Packet& packet, TransformData& data)
 {
-    return packet >> data.packetId >> data.dbId >> data.localPlayerId >> data.x >> data.y >> data.flipped;
+    return packet >> data.packetId >> data.dbId >> data.localPlayerId >> data.x >> data.y >> data.flipped
+        >> data.spriteStartX >> data.spriteStartY >> data.spriteEndX >> data.spriteEndY;
 }
 
 // Disparo replicado desde enemigo

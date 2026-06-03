@@ -44,6 +44,8 @@ void GameScene::OnEnter()
         remotePlayer->GetTransform()->position = P1_START_POS;
     }
 
+    remotePlayer->animRenderer->Update(0.f);
+
     tileMap = new TileMap();
     tileMap->initMap("Tilemaps/Tilemap1.txt");
 
@@ -116,6 +118,9 @@ void GameScene::Update(float dt)
         {
             remotePlayer->GetTransform()->position = sf::Vector2f(t.x, t.y);
             remotePlayer->animRenderer->flipped    = t.flipped;
+            remotePlayer->animRenderer->ApplyFrameRect(
+                { t.spriteStartX, t.spriteStartY },
+                { t.spriteEndX,   t.spriteEndY });
         }
     }
     cs.incomingTransforms.clear();
@@ -124,8 +129,8 @@ void GameScene::Update(float dt)
     if (cs.hasShootReplicate)
     {
         sf::Vector2f dir = cs.lastShootReplicate.flipped
-            ? sf::Vector2f(-1.f, 0.f)
-            : sf::Vector2f( 1.f, 0.f);
+            ? sf::Vector2f( 1.f, 0.f)
+            : sf::Vector2f(-1.f, 0.f);
         Bullet* rivalBullet = new Bullet(cs.lastShootReplicate.position, dir);
         rivalBullet->isLocal = false;
         bullets.push_back(rivalBullet);
@@ -209,13 +214,8 @@ void GameScene::Update(float dt)
         }
     }
 
-    // Collision between local player and tilemap
     ResolveCollisions(localPlayer);
-
-    // Keep remote player animation ticking
-    remotePlayer->animRenderer->Update(dt);
-
-    // Send transform to GameServer periodically
+    ResolvePlayerCollision();
     m_sendTimer += dt;
     if (m_sendTimer >= SEND_INTERVAL)
     {
@@ -266,6 +266,48 @@ void GameScene::ResolveCollisions(Player* p)
     }
 }
 
+void GameScene::ResolvePlayerCollision()
+{
+    if (!localPlayer || !remotePlayer) return;
+
+    AnimatedRenderer* la = localPlayer->animRenderer;
+    AnimatedRenderer* ra = remotePlayer->animRenderer;
+    if (!la || !ra || !la->sprite.has_value() || !ra->sprite.has_value()) return;
+
+    sf::FloatRect a = la->sprite->getGlobalBounds();
+    sf::FloatRect b = ra->sprite->getGlobalBounds();
+
+    auto inter = a.findIntersection(b);
+    if (!inter.has_value()) return;
+
+    // Empujar SOLO al jugador local, por el eje de menor penetracion (como con los tiles)
+    if (inter->size.x < inter->size.y)
+    {
+        float aCenter = a.position.x + a.size.x * 0.5f;
+        float bCenter = b.position.x + b.size.x * 0.5f;
+        if (aCenter < bCenter)
+            localPlayer->GetTransform()->position.x -= inter->size.x;
+        else
+            localPlayer->GetTransform()->position.x += inter->size.x;
+        localPlayer->velocity.x = 0.f;
+    }
+    else
+    {
+        float aCenter = a.position.y + a.size.y * 0.5f;
+        float bCenter = b.position.y + b.size.y * 0.5f;
+        if (aCenter < bCenter)
+        {
+            localPlayer->GetTransform()->position.y -= inter->size.y;
+            localPlayer->grounded = true;
+        }
+        else
+            localPlayer->GetTransform()->position.y += inter->size.y;
+        localPlayer->velocity.y = 0.f;
+    }
+
+    la->sprite->setPosition(localPlayer->GetTransform()->position);
+}
+
 void GameScene::DrawHitOverlay(sf::RenderWindow& window, Player* p, float flashTimer, bool rivalTint)
 {
 
@@ -280,7 +322,10 @@ void GameScene::SendTransform()
     data.x             = localPlayer->GetTransform()->position.x;
     data.y             = localPlayer->GetTransform()->position.y;
     data.flipped       = localPlayer->animRenderer->flipped;
-
+    data.spriteStartX = localPlayer->animRenderer->startOffset.x;
+    data.spriteStartY = localPlayer->animRenderer->startOffset.y;
+    data.spriteEndX = localPlayer->animRenderer->endOffset.x;
+    data.spriteEndY = localPlayer->animRenderer->endOffset.y;
     sf::Packet packet;
     packet << PacketType::TRANSFORM << data;
     NM.SendUdp(packet);
