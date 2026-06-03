@@ -16,7 +16,7 @@ private:
 
     static void SaveMap(const std::string& content, const std::string& version);
 
-    static constexpr const char* MAP_PATH        = "maps/map.txt";
-    static constexpr const char* VERSION_PATH    = "maps/map_version.txt";
-    static constexpr const char* DEFAULT_VERSION = "0.0.0";
+    static const char* MAP_PATH;
+    static const char* VERSION_PATH;
+    static const char* DEFAULT_VERSION;
 };

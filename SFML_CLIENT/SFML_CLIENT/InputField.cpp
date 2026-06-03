@@ -11,14 +11,14 @@ InputField::InputField(float x, float y, float w, float h, sf::Font& font): text
 
 void InputField::handleEvent(const sf::Event& event)
 {
-    if (const auto* mouseEvent = event.getIf<sf::Event::MouseButtonPressed>()) {
+    if (const sf::Event::MouseButtonPressed* mouseEvent = event.getIf<sf::Event::MouseButtonPressed>()) {
         if (rect.getGlobalBounds().contains(sf::Vector2f(static_cast<float>(mouseEvent->position.x), static_cast<float>(mouseEvent->position.y))))
             selected = true;
         else
             selected = false;
     }
         
-    if (const auto* e = event.getIf<sf::Event::TextEntered>())
+    if (const sf::Event::TextEntered* e = event.getIf<sf::Event::TextEntered>())
     {
         if (selected) {
             if (e->unicode == '\b' && !input.empty())

@@ -5,7 +5,7 @@
 
 TileMap::~TileMap()
 {
-	for (auto& row : tileGrid)
+	for (std::vector<Tile*>& row : tileGrid)
 		for (Tile* tile : row)
 			delete tile;
 }
@@ -25,18 +25,19 @@ void TileMap::initMap(const std::string& mapDatafilePath)
 		for (char c : line) {
 			Tile* tile = new Tile();
 			tile->GetTransform()->position = currentPos;
-			switch (c)
-			{
-			default:
-				break;
-			}
 			if (c == '#') {
 				tile->hasCollision = true;
 				SpriteRenderer* r = new SpriteRenderer(tile->GetTransform());
-				r->texture.loadFromFile("Sprites/Tiles/Dirt.png");
-				r->sprite.emplace(r->texture);
-				r->sprite->setPosition(tile->GetTransform()->position);
-				tile->SetRenderer(r);
+				if (r->texture.loadFromFile("Sprites/Tiles/Dirt.png"))
+				{
+					r->sprite.emplace(r->texture);
+					r->sprite->setPosition(tile->GetTransform()->position);
+					tile->SetRenderer(r);
+				}
+				else
+				{
+					delete r;
+				}
 			}
 
 			gridRow.push_back(tile);
@@ -52,7 +53,7 @@ void TileMap::initMap(const std::string& mapDatafilePath)
 
 void TileMap::render(sf::RenderWindow& window)
 {
-	for (auto& row : tileGrid)
+	for (std::vector<Tile*>& row : tileGrid)
 		for (Tile* tile : row)
 			if (tile->GetRenderer())
 				tile->GetRenderer()->render(window);

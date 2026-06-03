@@ -5,29 +5,25 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <SFML/System.hpp>
 
-static constexpr const char* MAPS_DIR = "maps/";
+static const char* MAPS_DIR = "maps/";
 
-// false = jugar desde internet. true = probar todos en la misma LAN.
-static constexpr bool USE_LAN = false;
-
-// Esta IP se envia a los clientes para que entren al Game Server por UDP.
-static constexpr const char* GAME_SERVER_LAN_IP        = "192.168.1.45";
-static constexpr const char* GAME_SERVER_PUBLIC_IP_WAN = "79.152.44.136";
+static const char* LOCALHOST_IP              = "127.0.0.1";
 
 // IP local porque SFML_SERVER y ServerUDP corren en el mismo PC servidor.
-static constexpr const char* GAME_SERVER_LINK_IP       = "127.0.0.1";
-static constexpr unsigned short GAME_SERVER_UDP_PORT   = 55002;
+static const char* GAME_SERVER_LINK_IP       = LOCALHOST_IP;
+static const unsigned short GAME_SERVER_UDP_PORT   = 55002;
 
-static constexpr const char* GAME_SERVER_PUBLIC_IP = USE_LAN
-    ? GAME_SERVER_LAN_IP
-    : GAME_SERVER_PUBLIC_IP_WAN;
+// Esta IP se envia a los clientes para que entren al Game Server por UDP.
+static const char* GAME_SERVER_PUBLIC_IP     = LOCALHOST_IP;
+static const char RANKED_ROOM_PREFIX[]             = "match_ranked_";
 
 // Busca txt devuelve nombre
 static std::string GetCurrentMapFilename()
 {
-    for (const auto& entry : std::filesystem::directory_iterator(MAPS_DIR))
+    for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(MAPS_DIR))
     {
         if (entry.path().extension() == ".txt")
             return entry.path().filename().string();
@@ -37,8 +33,26 @@ static std::string GetCurrentMapFilename()
 
 static bool IsRankedRoomId(const std::string& roomId)
 {
-    const std::string rankedPrefix = "match_ranked_";
-    return roomId.compare(0, rankedPrefix.size(), rankedPrefix) == 0;
+    return roomId.compare(0, sizeof(RANKED_ROOM_PREFIX) - 1, RANKED_ROOM_PREFIX) == 0;
+}
+
+static bool SendTcpPacket(ConnectedClient& client, sf::Packet& packet, const char* context)
+{
+    if (client.socket == nullptr)
+        return false;
+
+    if (client.socket->send(packet) == sf::Socket::Status::Done)
+        return true;
+
+    std::cerr << "[SERVER] Error enviando " << context
+        << " a playerId " << client.playerId
+        << std::endl;
+    return false;
+}
+
+static void RemovePlayerFromQueue(std::vector<int>& queue, int playerId)
+{
+    queue.erase(std::remove(queue.begin(), queue.end(), playerId), queue.end());
 }
 
 NetworkManager::NetworkManager()
@@ -101,12 +115,13 @@ void NetworkManager::AcceptNewClients()
 
 void NetworkManager::ReceiveClientData()
 {
-    for (int i = 0; i < static_cast<int>(m_clients.size()); ++i)
+    for (std::size_t i = 0; i < m_clients.size();)
     {
         ConnectedClient& client = m_clients[i];
 
         if (client.socket == nullptr)
         {
+            ++i;
             continue;
         }
 
@@ -130,8 +145,10 @@ void NetworkManager::ReceiveClientData()
                 << std::endl;
 
             RemoveDisconnectedClient(i);
-            --i;
+            continue;
         }
+
+        ++i;
     }
 }
 
@@ -206,7 +223,7 @@ void NetworkManager::HandleCheckMap(ConnectedClient& client, sf::Packet& packet)
 
     sf::Packet responsePacket;
     responsePacket << PacketType::MAP_STATUS << statusData;
-    client.socket->send(responsePacket);
+    SendTcpPacket(client, responsePacket, "MAP_STATUS");
 
     std::cout << "[SERVER] CheckMap de playerId " << client.playerId
               << " | cliente: " << checkData.version
@@ -238,7 +255,7 @@ void NetworkManager::HandleMapRequest(ConnectedClient& client)
 
     sf::Packet responsePacket;
     responsePacket << PacketType::MAP_RESPONSE << mapData;
-    client.socket->send(responsePacket);
+    SendTcpPacket(client, responsePacket, "MAP_RESPONSE");
 
     std::cout << "[SERVER] Mapa '" << currentFilename << "' enviado a playerId " << client.playerId << std::endl;
 }
@@ -448,13 +465,12 @@ void NetworkManager::HandleRankingRequest(ConnectedClient& client, sf::Packet& p
         response.message = "No hay datos de ranking.";
     }
 
-    for (int i = 0; i < dbRanking.size(); i++)
-        response.entries.push_back(dbRanking[i]);
+    response.entries = dbRanking;
 
     sf::Packet responsePacket;
     responsePacket << static_cast<short>(PacketType::RANKING_RESPONSE);
     responsePacket << response;
-    client.socket->send(responsePacket);
+    SendTcpPacket(client, responsePacket, "RANKING_RESPONSE");
 }
 
 void NetworkManager::HandleDisconnectRequest(ConnectedClient& client)
@@ -490,7 +506,7 @@ void NetworkManager::SendCreateRoomResponse(ConnectedClient& client, bool succes
     packet << static_cast<short>(PacketType::CREATE_ROOM_RESPONSE);
     packet << responseData;
 
-    client.socket->send(packet);
+    SendTcpPacket(client, packet, "CREATE_ROOM_RESPONSE");
 }
 
 void NetworkManager::SendJoinRoomResponse(ConnectedClient& client, bool success, const std::string& roomId, const std::string& message)
@@ -509,7 +525,7 @@ void NetworkManager::SendJoinRoomResponse(ConnectedClient& client, bool success,
     packet << static_cast<short>(PacketType::JOIN_ROOM_RESPONSE);
     packet << responseData;
 
-    client.socket->send(packet);
+    SendTcpPacket(client, packet, "JOIN_ROOM_RESPONSE");
 }
 
 void NetworkManager::SendLoginResponse(ConnectedClient& client, const LoginResponseData& data)
@@ -517,7 +533,7 @@ void NetworkManager::SendLoginResponse(ConnectedClient& client, const LoginRespo
     sf::Packet packet;
     packet << static_cast<short>(PacketType::LOGIN_RESPONSE);
     packet << data;
-    client.socket->send(packet);
+    SendTcpPacket(client, packet, "LOGIN_RESPONSE");
 }
 
 void NetworkManager::SendRegisterResponse(ConnectedClient& client, const RegisterResponseData& data)
@@ -525,7 +541,7 @@ void NetworkManager::SendRegisterResponse(ConnectedClient& client, const Registe
     sf::Packet packet;
     packet << static_cast<short>(PacketType::REGISTER_RESPONSE);
     packet << data;
-    client.socket->send(packet);
+    SendTcpPacket(client, packet, "REGISTER_RESPONSE");
 }
 
 
@@ -544,12 +560,12 @@ void NetworkManager::SendErrorMessage(ConnectedClient& client, const std::string
     packet << static_cast<short>(PacketType::ERROR_MESSAGE);
     packet << errorData;
 
-    client.socket->send(packet);
+    SendTcpPacket(client, packet, "ERROR_MESSAGE");
 }
 
 bool NetworkManager::SendSessionToGameServer(const StartGameData& startData, std::string& message)
 {
-    auto gameServerIp = sf::IpAddress::resolve(GAME_SERVER_LINK_IP);
+    std::optional<sf::IpAddress> gameServerIp = sf::IpAddress::resolve(GAME_SERVER_LINK_IP);
     if (!gameServerIp.has_value())
     {
         message = "IP del Game Server invalida.";
@@ -659,7 +675,7 @@ void NetworkManager::BroadcastRoomStatus(const std::string& roomId)
         sf::Packet packet;
         packet << static_cast<short>(PacketType::ROOM_STATUS_UPDATE);
         packet << roomData;
-        roomClient->socket->send(packet);
+        SendTcpPacket(*roomClient, packet, "ROOM_STATUS_UPDATE");
     }
 }
 
@@ -744,7 +760,7 @@ void NetworkManager::TryStartGame(const std::string& roomId)
         sf::Packet packet;
         packet << static_cast<short>(PacketType::START_GAME);
         packet << startData;
-        roomClient->socket->send(packet);
+        SendTcpPacket(*roomClient, packet, "START_GAME");
     }
 
     std::cout << "[SERVER] START_GAME enviado para sala " << roomId << std::endl;
@@ -813,13 +829,8 @@ void NetworkManager::TryCreateMatchFromQueue(std::vector<int>& queue, const std:
 
 void NetworkManager::RemoveClientFromMatchmakingQueues(int playerId)
 {
-    auto removeFromQueue = [playerId](std::vector<int>& queue)
-    {
-        queue.erase(std::remove(queue.begin(), queue.end(), playerId), queue.end());
-    };
-
-    removeFromQueue(m_normalQueue);
-    removeFromQueue(m_rankedQueue);
+    RemovePlayerFromQueue(m_normalQueue, playerId);
+    RemovePlayerFromQueue(m_rankedQueue, playerId);
 }
 
 ConnectedClient* NetworkManager::GetClientById(int playerId)
@@ -848,11 +859,11 @@ ConnectedClient* NetworkManager::GetClientBySocket(sf::TcpSocket* socket)
     return nullptr;
 }
 
-void NetworkManager::RemoveDisconnectedClient(int index)
+void NetworkManager::RemoveDisconnectedClient(std::size_t index)
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);
 
-    if (index < 0 || index >= static_cast<int>(m_clients.size()))
+    if (index >= m_clients.size())
     {
         return;
     }
@@ -860,14 +871,14 @@ void NetworkManager::RemoveDisconnectedClient(int index)
     int playerId = m_clients[index].playerId;
 
     if (!connectedUsers.empty()) {
-        auto it = std::find(connectedUsers.begin(), connectedUsers.end(), m_clients[index].username);
+        std::vector<std::string>::iterator it = std::find(connectedUsers.begin(), connectedUsers.end(), m_clients[index].username);
         if (it != connectedUsers.end())
             connectedUsers.erase(it);
     }
     RemoveClientFromMatchmakingQueues(playerId);
     m_roomManager.RemovePlayerFromRoom(playerId);
 
-    if (index < static_cast<int>(m_sockets.size()))
+    if (index < m_sockets.size())
     {
         if (m_sockets[index] != nullptr)
         {
@@ -917,12 +928,12 @@ void NetworkManager::HandleRankingUpdate(ConnectedClient& client, sf::Packet& pa
 
 void NetworkManager::ProcessRankingValidation(const std::string& roomId)
 {
-    auto& updates = pendingRankingUpdates[roomId];
+    std::vector<RankingUpdateData>& updates = pendingRankingUpdates[roomId];
     if (updates.size() < 2) return; // 2 Updates iguales para validar
 
     // Verificación por pares
     bool same = true;
-    const auto& first = updates[0].placementOrder;
+    const std::vector<int>& first = updates[0].placementOrder;
     for (size_t i = 1; i < updates.size(); ++i)
     {
         if (updates[i].placementOrder != first)

@@ -1,11 +1,11 @@
 #include "NetworkManager.h"
 #include "Constants.h"
 #include <iostream>
+#include <optional>
 
 NetworkManager::NetworkManager()
     : m_isConnected(false)
     , m_udpSocketReady(false)
-    , listener(nullptr)
 {
 }
 
@@ -24,7 +24,7 @@ bool NetworkManager::ConnectToServer()
 
     for (int i = 0; i < 2; i++)
     {
-        auto serverIp = sf::IpAddress::resolve(ips[i]);
+        std::optional<sf::IpAddress> serverIp = sf::IpAddress::resolve(ips[i]);
         if (!serverIp.has_value())
         {
             std::cerr << "[CLIENT] IP del servidor invalida: " << ips[i] << std::endl;
@@ -71,110 +71,22 @@ void NetworkManager::ReceiveData()
         }
     }
 
-    AcceptPeerConnections();
 }
 
-bool NetworkManager::StartP2PListener(unsigned short port)
+void NetworkManager::ClearGameNetworkState()
 {
-    if (listener == nullptr) {
-        listener = new sf::TcpListener();
-    }
-    
-    if (listener->listen(port) != sf::Socket::Status::Done) {
-        std::cerr << "[CLIENT-P2P] Error al crear listener P2P en puerto " << port << std::endl;
-        return false;
-    }
-    
-    listener->setBlocking(false);
-    std::cout << "[CLIENT-P2P] Escuchando conexiones P2P en el puerto " << port << std::endl;
-    return true;
-}
-
-void NetworkManager::AcceptPeerConnections()
-{
-    if (listener == nullptr) return;
-
-    auto newSocket = std::make_unique<sf::TcpSocket>();
-    newSocket->setBlocking(false);
-
-    if (listener->accept(*newSocket) == sf::Socket::Status::Done)
-    {
-        std::cout << "[CLIENT-P2P] Un peer (rival) se ha conectado!" << std::endl;
-        m_gameConnections.push_back(std::move(newSocket));
-    }
-}
-
-void NetworkManager::AddConnection(const std::string& ip, unsigned short port)
-{
-    auto newSocket = std::make_unique<sf::TcpSocket>();
-    auto address = sf::IpAddress::resolve(ip);
-    if (!address)
-    {
-        std::cerr << "[CLIENT] IP invalida: " << ip << std::endl;
-        return;
-    }
-
-    if (newSocket->connect(*address, port) == sf::Socket::Status::Done)
-    {
-        std::cout << "[CLIENT] Conectado al rival " << ip << ":" << port << std::endl;
-        newSocket->setBlocking(false);
-        m_gameConnections.push_back(std::move(newSocket));
-    }
-    else
-    {
-        std::cerr << "[CLIENT] Error al conectar con el rival " << ip << ":" << port << std::endl;
-    }
-}
-
-void NetworkManager::SendToAllConnections(sf::Packet& packet)
-{
-    for (auto& sock : m_gameConnections)
-    {
-        if (sock->send(packet) != sf::Socket::Status::Done)
-        {
-            std::cerr << "[CLIENT] Error al enviar paquete P2P." << std::endl;
-        }
-    }
-}
-
-const std::vector<std::unique_ptr<sf::TcpSocket>>& NetworkManager::GetConnections() const
-{
-    return m_gameConnections;
-}
-
-std::vector<std::unique_ptr<sf::TcpSocket>>& NetworkManager::GetConnections()
-{
-    return m_gameConnections;
-}
-
-void NetworkManager::ClearConnections()
-{
-    for (auto& sock : m_gameConnections)
-    {
-        sock->disconnect();
-    }
-    m_gameConnections.clear();
-
-    // Liberar el puerto entre partidas
-    if (listener != nullptr)
-    {
-        listener->close();
-        delete listener;
-        listener = nullptr;
-    }
-
     if (m_udpSocketReady)
     {
         m_udpSocket.unbind();
         m_udpSocketReady = false;
     }
 
-    std::cout << "[CLIENT] Conexiones P2P y listener cerrados." << std::endl;
+    std::cout << "[CLIENT-UDP] Socket de partida cerrado." << std::endl;
 }
 
 bool NetworkManager::SendUdpHelloReady()
 {
-    auto ip = sf::IpAddress::resolve(m_clientState.gameServerIp);
+    std::optional<sf::IpAddress> ip = sf::IpAddress::resolve(m_clientState.gameServerIp);
     if (!ip.has_value())
     {
         std::cerr << "[CLIENT-UDP] IP del GameServer invalida: "
@@ -186,7 +98,12 @@ bool NetworkManager::SendUdpHelloReady()
     if (!m_udpSocketReady)
     {
         // puerto libre
-        m_udpSocket.bind(sf::Socket::AnyPort);
+        if (m_udpSocket.bind(sf::Socket::AnyPort) != sf::Socket::Status::Done)
+        {
+            std::cerr << "[CLIENT-UDP] No se pudo abrir un puerto UDP local." << std::endl;
+            return false;
+        }
+
         m_udpSocket.setBlocking(false);
         m_udpSocketReady = true;
     }
@@ -198,7 +115,11 @@ bool NetworkManager::SendUdpHelloReady()
     sf::Packet packet;
     packet << PacketType::UDP_HELLO << helloData;
 
-    m_udpSocket.send(packet, *ip, m_clientState.gameServerUdpPort);
+    if (m_udpSocket.send(packet, *ip, m_clientState.gameServerUdpPort) != sf::Socket::Status::Done)
+    {
+        std::cerr << "[CLIENT-UDP] Error enviando UDP_HELLO." << std::endl;
+        return false;
+    }
 
     std::cout << "[CLIENT-UDP] hello -> "
         << m_clientState.gameServerIp << ":" 
@@ -422,7 +343,8 @@ void NetworkManager::ProcessPacket(sf::Packet& packet)
 
 void NetworkManager::SendToServer(sf::Packet& packet)
 {
-    m_socket.send(packet);
+    if (m_socket.send(packet) != sf::Socket::Status::Done)
+        std::cerr << "[CLIENT] Error enviando paquete al servidor." << std::endl;
 }
 
 bool NetworkManager::SendLoginRequest(const std::string& username, const std::string& password)
@@ -525,7 +447,8 @@ void NetworkManager::SendUdp(sf::Packet& packet)
         return;
     }
 
-    m_udpSocket.send(packet, *ip, m_clientState.gameServerUdpPort);
+    if (m_udpSocket.send(packet, *ip, m_clientState.gameServerUdpPort) != sf::Socket::Status::Done)
+        std::cerr << "[CLIENT-UDP] Error enviando paquete UDP." << std::endl;
 }
 
 void NetworkManager::ReceiveUdpData()

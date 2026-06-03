@@ -3,8 +3,8 @@
 sf::Packet& operator<<(sf::Packet& packet, const RankingResponseData& data)
 {
     packet << data.success << data.message << static_cast<int>(data.entries.size());
-    for (int i = 0; i < (int)data.entries.size(); i++)
-        packet << data.entries[i];
+    for (const RankingData& entry : data.entries)
+        packet << entry;
     return packet;
 }
 

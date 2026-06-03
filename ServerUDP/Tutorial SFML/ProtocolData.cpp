@@ -50,8 +50,8 @@ sf::Packet& operator>>(sf::Packet& packet, Result& data)
 sf::Packet& operator<<(sf::Packet& packet, const GameResultData& data)
 {
     packet << data.roomId << static_cast<int>(data.results.size());
-    for (int i = 0; i < (int)data.results.size(); i++)
-        packet << data.results[i];
+    for (const Result& result : data.results)
+        packet << result;
 
     return packet;
 }

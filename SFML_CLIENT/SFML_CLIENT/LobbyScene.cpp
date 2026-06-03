@@ -74,7 +74,7 @@ void LobbyScene::OnEnter()
     if(!uiInitialized)
 		BuildUI();
 
-	auto& state = NM.GetClientState();
+	ClientState& state = NM.GetClientState();
 
     //limpiar estado visual lobby
 	state.hasGameStarted = false;
@@ -117,7 +117,7 @@ void LobbyScene::HandleEvent(const sf::Event& event)
 
 void LobbyScene::AskNormalMatchmaking()
 {
-    auto& state = NM.GetClientState();
+    ClientState& state = NM.GetClientState();
     if (state.isSearchingMatch)
     {
         statusText = "Ya estas buscando partida.";
@@ -136,7 +136,7 @@ void LobbyScene::AskNormalMatchmaking()
 
 void LobbyScene::AskRankedMatchmaking()
 {
-    auto& state = NM.GetClientState();
+    ClientState& state = NM.GetClientState();
     if (state.isSearchingMatch)
     {
         statusText = "Ya estas buscando partida.";
@@ -155,7 +155,7 @@ void LobbyScene::AskRankedMatchmaking()
 
 void LobbyScene::CancelMatchmaking()
 {
-    auto& state = NM.GetClientState();
+    ClientState& state = NM.GetClientState();
     if (!state.isSearchingMatch)
     {
         statusText = "No hay busqueda activa.";
@@ -183,7 +183,7 @@ void LobbyScene::AskCreateRoom()
         return;
     }
 
-    auto& state = NM.GetClientState();
+    ClientState& state = NM.GetClientState();
     NM.SendCreateRoomRequest(roomId, state.nickname, state.myGamePort);
 
     statusText = "Solicitando crear sala: " + roomId;
@@ -202,7 +202,7 @@ void LobbyScene::AskJoinRoom()
         return;
     }
 
-    auto& state = NM.GetClientState();
+    ClientState& state = NM.GetClientState();
     NM.SendJoinRoomRequest(roomId, state.nickname, state.myGamePort);
 
     statusText = "Solicitando unirse a sala: " + roomId;
@@ -213,7 +213,7 @@ void LobbyScene::Update(float dt)
 {
     NM.NetworkFetch();
 
-    const auto& state = NM.GetClientState();
+    const ClientState& state = NM.GetClientState();
 
     if (state.hasGameStarted)
     {
@@ -262,7 +262,7 @@ void LobbyScene::Render(sf::RenderWindow& window)
 
 	window.draw(status);
 
-	const auto& state = NM.GetClientState();
+	const ClientState& state = NM.GetClientState();
 
 	sf::Text roomInfo(font);
 	roomInfo.setCharacterSize(Config::UI::FONT_SIZE_NORMAL);
@@ -277,7 +277,7 @@ void LobbyScene::Render(sf::RenderWindow& window)
 		info += state.isHost ? "Host\n" : "Cliente\n";
         info += "Jugadores en sala:" + std::to_string(state.roomPlayers.size()) + "\n";
 
-        for (const auto& player : state.roomPlayers)
+        for (const LobbyPlayerInfo& player : state.roomPlayers)
         {
             info += " - " + player.username;
 			if (player.isHost) info += " (Host)";

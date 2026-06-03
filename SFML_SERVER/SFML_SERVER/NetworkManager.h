@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Network.hpp>
+#include <cstddef>
 #include <vector>
 #include <memory>
 #include <string>
@@ -67,7 +68,7 @@ private:
     ConnectedClient* GetClientById(int playerId);
     ConnectedClient* GetClientBySocket(sf::TcpSocket* socket);
 
-    void RemoveDisconnectedClient(int index);
+    void RemoveDisconnectedClient(std::size_t index);
 
     void PrintConnectedClients() const;
 

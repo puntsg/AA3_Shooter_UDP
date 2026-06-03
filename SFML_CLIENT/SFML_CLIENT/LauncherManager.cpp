@@ -6,6 +6,10 @@
 #include <fstream>
 #include <filesystem>
 
+const char* LauncherManager::MAP_PATH = "maps/map.txt";
+const char* LauncherManager::VERSION_PATH = "maps/map_version.txt";
+const char* LauncherManager::DEFAULT_VERSION = "0.0.0";
+
 void LauncherManager::RunLauncher()
 {
     std::cout << "[LAUNCHER] Verificando version del mapa..." << std::endl;
