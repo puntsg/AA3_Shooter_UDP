@@ -118,19 +118,22 @@ bool DatabaseConnector::AddPlayer(RegisterRequestData rrd)
 void DatabaseConnector::UpdateScore(Result r)
 {
 	try {
-		sql::PreparedStatement* pstmt = con->prepareStatement("CALL UpdateScore( ?, ? )");
-		pstmt->setString(1, r.username);
-		pstmt->setInt(2, r.scoredPoints);
+		// No usamos la stored procedure porque en algunas BD actualizaba mas jugadores.
+		sql::PreparedStatement* pstmt = con->prepareStatement(
+			"UPDATE players SET Score = GREATEST(0, CAST(Score AS SIGNED) + ?) WHERE Username = ?"
+		);
+		pstmt->setInt(1, r.scoredPoints);
+		pstmt->setString(2, r.username);
 		pstmt->execute();
-		while (pstmt->getMoreResults()) {
-			sql::ResultSet* extraRes = pstmt->getResultSet();
-			if (extraRes)
-				delete extraRes;
-		}
+
+		std::cout << "[SERVER] Ranking: " << r.username
+			<< " cambia " << r.scoredPoints
+			<< " puntos." << std::endl;
+
 		delete pstmt;
 	}
 	catch (sql::SQLException& e) {
-		std::cout << "AddPlayer error: " << e.what() << std::endl;
+		std::cout << "UpdateScore error: " << e.what() << std::endl;
 	}
 }
 
