@@ -138,6 +138,23 @@ inline sf::Packet& operator>>(sf::Packet& packet, EndgameData& data)
     return packet;
 }
 
+struct Result
+{
+    std::string username;
+    int scoredPoints = 0;
+};
+
+struct GameResultData
+{
+    std::string roomId;
+    std::vector<Result> results;
+};
+
+sf::Packet& operator<<(sf::Packet& packet, const Result& data);
+sf::Packet& operator>>(sf::Packet& packet, Result& data);
+sf::Packet& operator<<(sf::Packet& packet, const GameResultData& data);
+sf::Packet& operator>>(sf::Packet& packet, GameResultData& data);
+
 inline sf::Packet& operator<<(sf::Packet& packet, const UdpHelloData& data)
 {
     packet << data.roomId << data.playerId;

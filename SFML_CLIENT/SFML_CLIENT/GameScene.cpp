@@ -21,20 +21,6 @@ static int GetMyMatchIndex()
     return state.isHost ? 0 : 1;
 }
 
-static std::string GetPlayerNameById(int playerId)
-{
-    const ClientState& state = NM.GetClientState();
-
-    // Buscamos el nombre usando el id que llega del Game Server.
-    for (int i = 0; i < (int)state.roomPlayers.size(); i++)
-    {
-        if (state.roomPlayers[i].playerId == playerId)
-            return state.roomPlayers[i].username;
-    }
-
-    return "";
-}
-
 void GameScene::OnEnter()
 {
     std::cout << "[GameScene] Iniciando partida platformer..." << std::endl;
@@ -412,62 +398,12 @@ void GameScene::OnExit()
 
 void GameScene::HandleGameEnd()
 {
-    // Antes de volver al lobby preparamos el resultado para el ranking.
-    PrepareRankingResult();
-
     if (NM.ConnectToServer())
     {
-        ClientState& state = NM.GetClientState();
-
-        // Solo el ganador tiene resultado pendiente, asi no sumamos dos veces.
-        if (state.hasPendingResult)
-        {
-            sf::Packet resultPacket;
-            resultPacket << static_cast<short>(PacketType::ENDGAME);
-            resultPacket << state.pendingGameResult;
-            NM.SendToServer(resultPacket);
-            state.hasPendingResult = false;
-        }
-
         NM.SendLoginRequest(
-            state.nickname,
-            state.savedPassword
+            NM.GetClientState().nickname,
+            NM.GetClientState().savedPassword
         );
     }
     SM.SetNextScene("LobbyScene");
-}
-
-void GameScene::PrepareRankingResult()
-{
-    ClientState& state = NM.GetClientState();
-    EndgameData endData = state.endgameData;
-
-    // Si este cliente no ha ganado no envia nada al servidor
-    if (endData.winnerPlayerId != state.playerId)
-        return;
-
-    std::string winnerName = GetPlayerNameById(endData.winnerPlayerId);
-    std::string loserName = GetPlayerNameById(endData.loserPlayerId);
-
-    if (winnerName.empty() || loserName.empty())
-    {
-        std::cout << "[GameScene] No se pudo preparar ranking: falta nombre de jugador." << std::endl;
-        return;
-    }
-
-    // Puntos del ranking: ganador suma, perdedor pierde un poco
-    Result winnerResult;
-    winnerResult.username = winnerName;
-    winnerResult.scoredPoints = 20;
-
-    Result loserResult;
-    loserResult.username = loserName;
-    loserResult.scoredPoints = -5;
-
-    state.pendingGameResult.results.clear();
-    state.pendingGameResult.results.push_back(winnerResult);
-    state.pendingGameResult.results.push_back(loserResult);
-    state.hasPendingResult = true;
-
-    std::cout << "[GameScene] Resultado preparado: " << winnerName << " gana." << std::endl;
 }

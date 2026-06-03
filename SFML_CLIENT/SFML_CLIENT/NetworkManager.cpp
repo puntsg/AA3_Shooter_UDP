@@ -607,13 +607,6 @@ void NetworkManager::HandleEndgame(sf::Packet& packet)
     m_clientState.hasEndgame = true;
 }
 
-void NetworkManager::NotifyPlayerWin(const std::string& username)
-{
-    sf::Packet packet;
-    packet << static_cast<short>(PacketType::ENDGAME);
-    m_socket.send(packet);
-}
-
 void NetworkManager::HandleCreateRoomResponse(sf::Packet& packet)
 {
     CreateRoomResponseData responseData;
@@ -750,18 +743,6 @@ void NetworkManager::HandleLoginResponse(sf::Packet& packet)
     {
         m_clientState.playerId = loginResponseData.playerId;
         m_clientState.nickname = loginResponseData.username;
-        
-        // Ranking y login
-        if (m_clientState.hasPendingResult)
-        {
-            sf::Packet rankPacket;
-            rankPacket << static_cast<short>(PacketType::ENDGAME);
-            rankPacket << m_clientState.pendingGameResult;
-            SendToServer(rankPacket);
-            
-            std::cout << "[CLIENT] Ranking pendiente enviado tas auto-login." << std::endl;
-            m_clientState.hasPendingResult = false;
-        }
     }
 }
 

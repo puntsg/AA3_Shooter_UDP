@@ -9,11 +9,15 @@
 
 static constexpr const char* MAPS_DIR = "maps/";
 
+// false = jugar desde internet. true = probar todos en la misma LAN.
 static constexpr bool USE_LAN = false;
 
+// Esta IP se envia a los clientes para que entren al Game Server por UDP.
 static constexpr const char* GAME_SERVER_LAN_IP        = "192.168.1.45";
-static constexpr const char* GAME_SERVER_PUBLIC_IP_WAN = "79.152.44.136";  
-static constexpr const char* GAME_SERVER_LINK_IP       = "127.0.0.1";      
+static constexpr const char* GAME_SERVER_PUBLIC_IP_WAN = "79.152.44.136";
+
+// IP local porque SFML_SERVER y ServerUDP corren en el mismo PC servidor.
+static constexpr const char* GAME_SERVER_LINK_IP       = "127.0.0.1";
 static constexpr unsigned short GAME_SERVER_UDP_PORT   = 55002;
 
 static constexpr const char* GAME_SERVER_PUBLIC_IP = USE_LAN
@@ -384,16 +388,31 @@ void NetworkManager::HandleEndGame(ConnectedClient& client, sf::Packet& packet)
 {
     GameResultData resultData;
     packet >> resultData;
+
+    // Este ENDGAME viene del ServerUDP, no del cliente.
+    // El UDP ya ha decidido ganador y perdedor.
     for (const Result& r : resultData.results)
         DC.UpdateScore(r);
-    
-    // Eliminar la sala para volver a jugar si quieren
+
+    // Borramos por roomId porque la conexion TCP la abre el ServerUDP.
+    if (!resultData.roomId.empty())
+    {
+        Room* room = m_roomManager.GetRoom(resultData.roomId);
+        if (room != nullptr)
+        {
+            m_roomManager.DeleteRoom(resultData.roomId);
+            std::cout << "[SERVER] Sala " << resultData.roomId << " eliminada tras ENDGAME." << std::endl;
+        }
+        return;
+    }
+
+    // Fallback por si llega algun paquete antiguo sin roomId.
     Room* room = m_roomManager.GetRoomByPlayerId(client.playerId);
     if (room != nullptr)
     {
-        std::string roomId = room->roomId;
-        m_roomManager.DeleteRoom(roomId);
-        std::cout << "[SERVER] Sala " << roomId << " eliminada tras ENDGAME." << std::endl;
+        std::string oldRoomId = room->roomId;
+        m_roomManager.DeleteRoom(oldRoomId);
+        std::cout << "[SERVER] Sala " << oldRoomId << " eliminada tras ENDGAME." << std::endl;
     }
 }
 
@@ -534,7 +553,7 @@ bool NetworkManager::SendSessionToGameServer(const StartGameData& startData, std
     sessionData.playerCount = startData.playerCount;
     sessionData.players = startData.players;
 
-    // sala para el udp
+    // Avisamos al Game Server local para que prepare la sala UDP.
     sf::Packet requestPacket;
     requestPacket << static_cast<short>(PacketType::SESSION_START_REQUEST);
     requestPacket << sessionData;
@@ -723,6 +742,7 @@ void NetworkManager::TryStartGame(const std::string& roomId)
         }
     }
 
+    // A partir de aqui la partida la controla el ServerUDP.
     m_roomManager.DeleteRoom(roomId);
 }
 
