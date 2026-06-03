@@ -10,7 +10,7 @@
 
 static const char* MAPS_DIR = "maps/";
 
-static const char* LOCALHOST_IP              = "127.0.0.1";
+static const char* LOCALHOST_IP= "10.40.2.212"; //10.40.2.212
 
 // IP local porque SFML_SERVER y ServerUDP corren en el mismo PC servidor.
 static const char* GAME_SERVER_LINK_IP       = LOCALHOST_IP;
