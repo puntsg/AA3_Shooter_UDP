@@ -10,7 +10,7 @@
 
 static const char* MAPS_DIR = "maps/";
 
-static const char* LOCALHOST_IP= "10.40.2.212"; //10.40.2.212
+static const char* LOCALHOST_IP= "127.0.0.1"; //10.40.2.212
 
 // IP local porque SFML_SERVER y ServerUDP corren en el mismo PC servidor.
 static const char* GAME_SERVER_LINK_IP       = LOCALHOST_IP;
@@ -200,9 +200,6 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
     case PacketType::DISCONNECT:
         HandleDisconnectRequest(client);
         break;
-    case PacketType::PLAYER_MOVES:
-        std::cout << "player send movement packet" << std::endl;
-        break;
     default:
         std::cout << "[SERVER] Paquete no gestionado recibido de playerId "
             << client.playerId
@@ -319,7 +316,6 @@ void NetworkManager::HandleCreateRoomRequest(ConnectedClient& client, sf::Packet
     }
 
     client.username = requestData.username;
-    client.gamePort = requestData.gamePort;
 
     bool success = m_roomManager.CreateRoom(requestData.roomId, client.playerId);
 
@@ -342,7 +338,6 @@ void NetworkManager::HandleCreateRoomRequest(ConnectedClient& client, sf::Packet
 void NetworkManager::HandleMatchmakingRequest(ConnectedClient& client, const CreateRoomRequestData& requestData, bool ranked)
 {
     client.username = requestData.username;
-    client.gamePort = requestData.gamePort;
 
     std::vector<int>& queue = ranked ? m_rankedQueue : m_normalQueue;
     const std::string queueName = ranked ? "ranked" : "normal";
@@ -368,7 +363,6 @@ void NetworkManager::HandleJoinRoomRequest(ConnectedClient& client, sf::Packet& 
     packet >> requestData;
 
     client.username = requestData.username;
-    client.gamePort = requestData.gamePort;
 
     Room* room = m_roomManager.GetRoom(requestData.roomId);
 
@@ -658,7 +652,6 @@ void NetworkManager::BroadcastRoomStatus(const std::string& roomId)
         playerInfo.playerId = roomClient->playerId;
         playerInfo.username = roomClient->username;
         playerInfo.ip = roomClient->ip.toString();
-        playerInfo.gamePort = roomClient->gamePort;
         playerInfo.isHost = (playerId == room->playerIds.front());
 
         roomData.players.push_back(playerInfo);
@@ -713,7 +706,6 @@ void NetworkManager::TryStartGame(const std::string& roomId)
         playerInfo.playerId = roomClient->playerId;
         playerInfo.username = roomClient->username;
         playerInfo.ip = roomClient->ip.toString();
-        playerInfo.gamePort = roomClient->gamePort;
         playerInfo.isHost = (playerId == room->playerIds.front());
 
         startData.players.push_back(playerInfo);
@@ -909,11 +901,11 @@ void NetworkManager::PrintConnectedClients() const
             << " | username: " << client.username
             << " | roomId: " << client.currentRoomId
             << " | ip: " << client.ip.toString()
-            << " | gamePort: " << client.gamePort
             << "\n";
     }
 }
 
+#if 0
 void NetworkManager::HandleRankingUpdate(ConnectedClient& client, sf::Packet& packet)
 {
     RankingUpdateData updateData;
@@ -969,4 +961,4 @@ void NetworkManager::ProcessRankingValidation(const std::string& roomId)
         pendingRankingUpdates.erase(roomId);
     }
 }
-
+#endif

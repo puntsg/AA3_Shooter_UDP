@@ -35,25 +35,13 @@ enum PacketType
     PLAYER_HIT,
     PLAYER_TAUNT,
 
-    // Legado Conecta
-    PIECEADDED,
-    NEXT_TURN,
-
     ENDGAME,
-    RANKINGUPDATE,
     RANKING_REQUEST,
     RANKING_RESPONSE,
-
-    // Player
-    PLAYER_MOVES,
-    PLAYER_SHOTS,
-    PLAYER_HURTED,
-    BULLET_MOVES,
 
     // Desconexion
     DISCONNECT,
     PLAYER_DISCONNECTED,
-    PING,
 
     ERROR_MESSAGE,
 

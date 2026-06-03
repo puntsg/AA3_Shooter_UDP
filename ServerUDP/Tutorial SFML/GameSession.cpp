@@ -12,7 +12,8 @@ static const float PLAYER_HIT_HALF_HEIGHT = 24.f;
 static const float BULLET_HIT_RADIUS = 5.f;
 static const float SHOT_SPAWN_OFFSET = 16.f;
 static const float MAX_CLIENT_SHOT_OFFSET = 48.f;
-static const char* RANKING_SERVER_IP = "10.40.2.189";
+static const float FALL_RESET_OFFSET = 50.f;
+static const char* RANKING_SERVER_IP = "127.0.0.1"; //10.40.2.189 // Mirar perque deu estar malament
 static const unsigned short RANKING_SERVER_PORT = 55001;
 static const int WIN_POINTS = 20;
 static const int LOSE_POINTS = -5;
@@ -84,6 +85,7 @@ void GameSession::ProcessMovePacket(int playerId, sf::Packet& packet)
         return;
 
     sf::Vector2f newPos(moveData.x, moveData.y);
+    bool fallReset = ClampPositionToMapBottom(newPos);
     
     float dx = std::abs(newPos.x - state.position.x);
     float dy = std::abs(newPos.y - state.position.y);
@@ -107,7 +109,7 @@ void GameSession::ProcessMovePacket(int playerId, sf::Packet& packet)
         state.cheatingStrikes--;
     }
 
-    if (!bigMove && timeSinceLast > 0.f)
+    if (!bigMove && !fallReset && timeSinceLast > 0.f)
     {
         state.velocity.x = (newPos.x - state.position.x) / timeSinceLast;
         state.velocity.y = (newPos.y - state.position.y) / timeSinceLast;
@@ -261,6 +263,7 @@ void GameSession::DisconnectPlayer(int playerId)
 
     GetState(playerId).disconnected = true;
     SendPlayerDisconnected(playerId);
+    // FinishGame reporta punts si la sala es ranked, també per timeout/desconnexio.
     FinishGame(winnerId, false);
 }
 
@@ -627,8 +630,25 @@ void GameSession::PredictPositions(float dt)
         float timeSincePacket = state.lastPacketClock.getElapsedTime().asSeconds();
 
         if (timeSincePacket > PREDICT_TIMEOUT)
+        {
             state.position += state.velocity * dt;
+            if (ClampPositionToMapBottom(state.position))
+                state.velocity = sf::Vector2f(0.f, 0.f);
+        }
     }
+}
+
+bool GameSession::ClampPositionToMapBottom(sf::Vector2f& position) const
+{
+    if (mapRows.empty())
+        return false;
+
+    float mapBottomY = static_cast<float>(mapRows.size()) * TILE_SIZE;
+    if (position.y < mapBottomY)
+        return false;
+
+    position.y = mapBottomY - FALL_RESET_OFFSET;
+    return true;
 }
 
 void GameSession::CheckDisconnects()

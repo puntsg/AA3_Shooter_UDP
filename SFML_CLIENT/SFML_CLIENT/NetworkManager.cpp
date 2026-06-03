@@ -166,7 +166,7 @@ void NetworkManager::CloseConnection()
     std::cout << "[CLIENT] Conexion cerrada correctamente." << std::endl;
 }
 
-void NetworkManager::SendCreateRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort)
+void NetworkManager::SendCreateRoomRequest(const std::string& roomId, const std::string& nickname)
 {
     if (!m_isConnected)
     {
@@ -179,7 +179,6 @@ void NetworkManager::SendCreateRoomRequest(const std::string& roomId, const std:
     CreateRoomRequestData requestData;
     requestData.roomId = roomId;
     requestData.username = nickname;
-    requestData.gamePort = gamePort;
 
     packet << static_cast<short>(PacketType::CREATE_ROOM_REQUEST);
     packet << requestData;
@@ -194,7 +193,7 @@ void NetworkManager::SendCreateRoomRequest(const std::string& roomId, const std:
     }
 }
 
-void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort)
+void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::string& nickname)
 {
     if (!m_isConnected)
     {
@@ -207,7 +206,6 @@ void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::s
     JoinRoomRequestData requestData;
     requestData.roomId = roomId;
     requestData.username = nickname;
-    requestData.gamePort = gamePort;
 
     packet << static_cast<short>(PacketType::JOIN_ROOM_REQUEST);
     packet << requestData;
@@ -222,7 +220,7 @@ void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::s
     }
 }
 
-bool NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort)
+bool NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname)
 {
     if (!m_isConnected)
     {
@@ -236,7 +234,6 @@ bool NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nick
     CreateRoomRequestData requestData;
     requestData.roomId = queueId;
     requestData.username = nickname;
-    requestData.gamePort = gamePort;
 
     packet << static_cast<short>(PacketType::CREATE_ROOM_REQUEST);
     packet << requestData;
@@ -605,7 +602,6 @@ void NetworkManager::HandleRoomStatusUpdate(sf::Packet& packet)
         std::cout << "  - " << player.username
             << " | host: " << player.isHost
             << " | ip: " << player.ip
-            << " | port: " << player.gamePort
             << std::endl;
     }
 }
@@ -639,7 +635,6 @@ void NetworkManager::HandleStartGame(sf::Packet& packet)
         std::cout << "  - " << player.username
             << " | host: " << player.isHost
             << " | ip: " << player.ip
-            << " | port: " << player.gamePort
             << std::endl;
     }
     NM.DisconnectFromServer();

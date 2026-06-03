@@ -62,9 +62,6 @@ private:
     void TryCreateMatchFromQueue(std::vector<int>& queue, const std::string& queueName);
     void RemoveClientFromMatchmakingQueues(int playerId);
 
-    void HandleRankingUpdate(ConnectedClient& client, sf::Packet& packet);
-    void ProcessRankingValidation(const std::string& roomId);
-
     ConnectedClient* GetClientById(int playerId);
     ConnectedClient* GetClientBySocket(sf::TcpSocket* socket);
 
@@ -83,7 +80,6 @@ private:
     std::vector<std::unique_ptr<sf::TcpSocket>> m_sockets;
     std::vector<ConnectedClient> m_clients;
     RoomManager m_roomManager;
-    std::map<std::string, std::vector<RankingUpdateData>> pendingRankingUpdates;
     std::vector<std::string> connectedUsers;
     std::vector<int> m_normalQueue;
     std::vector<int> m_rankedQueue;

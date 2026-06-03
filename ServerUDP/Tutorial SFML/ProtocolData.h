@@ -19,18 +19,17 @@ struct LobbyPlayerInfo
     int playerId       = -1;
     std::string username;
     std::string ip;
-    unsigned short gamePort = 0;
     bool isHost        = false;
 };
 
 inline sf::Packet& operator<<(sf::Packet& packet, const LobbyPlayerInfo& data)
 {
-    packet << data.playerId << data.username << data.ip << data.gamePort << data.isHost;
+    packet << data.playerId << data.username << data.ip << data.isHost;
     return packet;
 }
 inline sf::Packet& operator>>(sf::Packet& packet, LobbyPlayerInfo& data)
 {
-    packet >> data.playerId >> data.username >> data.ip >> data.gamePort >> data.isHost;
+    packet >> data.playerId >> data.username >> data.ip >> data.isHost;
     return packet;
 }
 

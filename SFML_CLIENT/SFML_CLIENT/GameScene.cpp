@@ -214,6 +214,7 @@ void GameScene::Update(float dt)
 
     ResolveCollisions(localPlayer);
     ResolvePlayerCollision();
+    ClampLocalPlayerToMap();
     m_sendTimer += dt;
     if (m_sendTimer >= SEND_INTERVAL)
     {
@@ -304,6 +305,25 @@ void GameScene::ResolvePlayerCollision()
     }
 
     la->sprite->setPosition(localPlayer->GetTransform()->position);
+}
+
+void GameScene::ClampLocalPlayerToMap()
+{
+    if (!localPlayer || !tileMap || tileMap->tileGrid.empty())
+        return;
+
+    float mapBottomY = static_cast<float>(tileMap->tileGrid.size())
+        * static_cast<float>(tileMap->tileSize.y);
+
+    if (localPlayer->GetTransform()->position.y < mapBottomY)
+        return;
+
+    localPlayer->GetTransform()->position.y = mapBottomY - FALL_RESET_OFFSET;
+    localPlayer->velocity.y = 0.f;
+    localPlayer->grounded = true;
+
+    if (localPlayer->animRenderer && localPlayer->animRenderer->sprite.has_value())
+        localPlayer->animRenderer->sprite->setPosition(localPlayer->GetTransform()->position);
 }
 
 void GameScene::SendTransform()

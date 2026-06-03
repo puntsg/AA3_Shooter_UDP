@@ -25,9 +25,9 @@ public:
     void DisconnectFromServer();  // Alias de CloseConnection
 
     // --- Protocolo de sala ---
-    void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
-    void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
-    bool SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort);
+    void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname);
+    void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname);
+    bool SendMatchmakingRequest(bool ranked, const std::string& nickname);
     bool SendCancelMatchmakingRequest();
 
     void ReceiveData();

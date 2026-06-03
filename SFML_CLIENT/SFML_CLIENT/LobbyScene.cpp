@@ -83,10 +83,6 @@ void LobbyScene::OnEnter()
 	state.roomPlayers.clear();
 	state.isHost = false;
 
-	unsigned short myPort = static_cast<unsigned short>(55001 + state.playerId);
-	state.myGamePort = myPort;
-
-	std::cout << "[Client] P2P port asigned: " << myPort << std::endl;
 	statusText = "Selecciona una cola para buscar partida";
 }
 
@@ -124,7 +120,7 @@ void LobbyScene::AskNormalMatchmaking()
         return;
     }
 
-    if (!NM.SendMatchmakingRequest(false, state.nickname, state.myGamePort))
+    if (!NM.SendMatchmakingRequest(false, state.nickname))
     {
         statusText = "No se pudo buscar partida amistosa.";
         return;
@@ -143,7 +139,7 @@ void LobbyScene::AskRankedMatchmaking()
         return;
     }
 
-    if (!NM.SendMatchmakingRequest(true, state.nickname, state.myGamePort))
+    if (!NM.SendMatchmakingRequest(true, state.nickname))
     {
         statusText = "No se pudo buscar partida ranked.";
         return;
@@ -184,7 +180,7 @@ void LobbyScene::AskCreateRoom()
     }
 
     ClientState& state = NM.GetClientState();
-    NM.SendCreateRoomRequest(roomId, state.nickname, state.myGamePort);
+    NM.SendCreateRoomRequest(roomId, state.nickname);
 
     statusText = "Solicitando crear sala: " + roomId;
     std::cout << "[CLIENT] CREATE_ROOM_REQUEST enviado para sala " << roomId << std::endl;
@@ -203,7 +199,7 @@ void LobbyScene::AskJoinRoom()
     }
 
     ClientState& state = NM.GetClientState();
-    NM.SendJoinRoomRequest(roomId, state.nickname, state.myGamePort);
+    NM.SendJoinRoomRequest(roomId, state.nickname);
 
     statusText = "Solicitando unirse a sala: " + roomId;
     std::cout << "[CLIENT] JOIN_ROOM_REQUEST enviado para sala " << roomId << std::endl;

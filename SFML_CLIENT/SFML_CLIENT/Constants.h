@@ -20,8 +20,8 @@ namespace Config
         //inline const char* SERVER_IP     = "127.0.0.1"; // IP pública del router (internet)
         //inline const char* SERVER_IP_LAN = "127.0.0.1";  // IP local del PC servidor (LAN)
         //Classe
-        inline const char* SERVER_IP = "10.40.2.189"; 
-        inline const char* SERVER_IP_LAN = "10.40.2.189";
+        inline const char* SERVER_IP = "127.0.0.1"; 
+        inline const char* SERVER_IP_LAN = "127.0.0.1";
 
         const unsigned short SERVER_PORT = 55001;
         const unsigned short GAME_PORT   = 55002;
@@ -41,7 +41,6 @@ namespace Config
         const short   CELL_SIZE = 90;
         const float MAX_TURN_TIME = 20.0f;
         const int   DEFAULT_SCORE = 1000;
-        inline const char* DEFAULT_ROOM = "test_room";
         const int   WIN_COUNT = 3;
         const float HUD_TURN_X = 20.f;
         const float HUD_TURN_Y = 20.f;
@@ -132,9 +131,5 @@ namespace GameConstants{
         const float GRAVITY_MULT = 10;
         const float JUMP_FORCE = 115;
         const float SPEED = 200;
-    }
-    namespace Health {
-        const short INITIAL_LIFES = 3;
-        const short INITIAL_HEALTH = 3;
     }
 }

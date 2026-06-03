@@ -83,6 +83,7 @@ private:
     bool SegmentHitsWall(const sf::Vector2f& from, const sf::Vector2f& to) const;
     bool PointHitsPlayer(const sf::Vector2f& point, int targetPlayerId) const;
     bool SegmentHitsPlayer(const sf::Vector2f& from, const sf::Vector2f& to, int targetPlayerId) const;
+    bool ClampPositionToMapBottom(sf::Vector2f& position) const;
     void HandleHit(int shooterPlayerId);
     void RespawnPlayer(int playerId);
 
