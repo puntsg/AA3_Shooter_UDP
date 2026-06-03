@@ -92,6 +92,10 @@ void GameSession::ProcessMovePacket(int playerId, sf::Packet& packet)
 
     state.position = newPos;
     state.flipped = moveData.flipped;
+    state.spriteStartX = moveData.spriteStartX;
+    state.spriteStartY = moveData.spriteStartY;
+    state.spriteEndX = moveData.spriteEndX;
+    state.spriteEndY = moveData.spriteEndY;
     state.lastValidPacketId = moveData.packetId;
 }
 
@@ -105,7 +109,7 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
     bool validShotPacket = static_cast<bool>(packet);
 
     shotData.flipped = shooter.flipped;
-    float dir = shotData.flipped ? -1.f : 1.f;
+    float dir = shotData.flipped ? 1.f : -1.f;
     sf::Vector2f authoritativePos = shooter.position + sf::Vector2f(dir * SHOT_SPAWN_OFFSET, 0.f);
 
     if (!validShotPacket)
@@ -299,6 +303,10 @@ void GameSession::BroadcastGameState()
         tData.x = states[i].position.x;
         tData.y = states[i].position.y;
         tData.flipped = states[i].flipped;
+        tData.spriteStartX = states[i].spriteStartX;
+        tData.spriteStartY = states[i].spriteStartY;
+        tData.spriteEndX = states[i].spriteEndX;
+        tData.spriteEndY = states[i].spriteEndY;
 
         sf::Packet packet;
         packet << PacketType::TRANSFORM << tData;

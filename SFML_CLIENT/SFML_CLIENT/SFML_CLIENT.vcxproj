@@ -186,6 +186,7 @@
   <ItemGroup>
     <Image Include="Sprites\Bullet.png" />
     <Image Include="Sprites\duck.png" />
+    <Image Include="Sprites\newDuck.png" />
     <Image Include="Sprites\Tiles\Dirt.png" />
   </ItemGroup>
   <ItemGroup>

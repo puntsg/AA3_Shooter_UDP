@@ -26,6 +26,7 @@ private:
     void PlayTaunt(int taunterId);
     void ApplyPlayerHit(const PlayerHitData& data);
     void ResolveCollisions(Player* p);
+    void ResolvePlayerCollision();
     void DrawHitOverlay(sf::RenderWindow& window, Player* p, float flashTimer, bool rivalTint);
     void DrawDebugGizmos(sf::RenderWindow& window);
     void HandleGameEnd();

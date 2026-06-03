@@ -29,6 +29,7 @@ struct PlayerState
     sf::Vector2f position;
     sf::Vector2f velocity;
     bool flipped = false;
+    float spriteStartX = 0.f, spriteStartY = 0.f, spriteEndX = 0.f, spriteEndY = 0.f;
     int health = MAX_HEALTH;
     int lifes = MAX_LIFES;
     bool ready = false;

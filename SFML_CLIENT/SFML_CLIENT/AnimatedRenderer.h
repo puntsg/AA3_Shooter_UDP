@@ -24,10 +24,12 @@ private:
 	int currentFrameIndex = 0;
 	float frameTimer = 0.f;
 public:
+	sf::Vector2f startOffset, endOffset;
 	sf::Texture texture;
 	std::optional<sf::Sprite> sprite;
 	sf::Color tint = sf::Color::White;
 	bool flipped = false;
+	float scaleFactor = 1.f; // <1 para empequenecer el sprite (se aplica cada frame)
 	std::function<void()> onAnimationLooped;
 
 	AnimatedRenderer(Transform* t) : Renderer(t) {}
@@ -38,5 +40,6 @@ public:
 
 	void render(sf::RenderWindow& window) override;
 	void Update(float dt) override;
+	void ApplyFrameRect(sf::Vector2f start, sf::Vector2f end); // aplica un frame recibido por red
 };
 

@@ -54,8 +54,34 @@ void AnimatedRenderer::Update(float dt)
 		texture,
 		sf::IntRect(frame.frameOffset, frame.frameSize)
 	);
-	if (flipped)
-		sprite->setScale({ -sprite->getScale().x,sprite->getScale().y });
+	startOffset = sf::Vector2f(frame.frameOffset.x, frame.frameOffset.y);
+	endOffset = sf::Vector2f(frame.frameOffset.x + frame.frameSize.x, frame.frameOffset.y + frame.frameSize.y);
+	sprite->setOrigin({ frame.frameSize.x / 2.f, frame.frameSize.y / 2.f }); 
+	sprite->setScale({ flipped ? -scaleFactor : scaleFactor, scaleFactor });
+	sprite->setPosition(transform->position);
+	sprite->setColor(tint);
+}
+
+void AnimatedRenderer::ApplyFrameRect(sf::Vector2f start, sf::Vector2f end)
+{
+	if (end.x - start.x <= 0.f || end.y - start.y <= 0.f)
+		return;
+
+	startOffset = start;
+	endOffset = end;
+
+	sf::IntRect rect(
+		sf::Vector2i((int)start.x, (int)start.y),
+		sf::Vector2i((int)(end.x - start.x), (int)(end.y - start.y))
+	);
+
+	if (!sprite.has_value())
+		sprite.emplace(texture, rect);
+	else
+		sprite->setTextureRect(rect);
+
+	sprite->setOrigin({ (end.x - start.x) / 2.f, (end.y - start.y) / 2.f });
+	sprite->setScale({ flipped ? -scaleFactor : scaleFactor, scaleFactor });
 	sprite->setPosition(transform->position);
 	sprite->setColor(tint);
 }
