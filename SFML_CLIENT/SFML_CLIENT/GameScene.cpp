@@ -6,8 +6,8 @@
 #include <cstddef>
 #include <iostream>
 
-static const sf::Vector2f P1_START_POS(96.f, 464.f);
-static const sf::Vector2f P2_START_POS(576.f, 464.f);
+static const sf::Vector2f P1_START_POS(96.f, 256.f);
+static const sf::Vector2f P2_START_POS(576.f, 256.f);
 
 static int GetMyMatchIndex()
 {
