@@ -28,6 +28,7 @@ private:
     void ResolveCollisions(Player* p);
     void DrawHitOverlay(sf::RenderWindow& window, Player* p, float flashTimer, bool rivalTint);
     void DrawDebugGizmos(sf::RenderWindow& window);
+    void PrepareRankingResult();
     void HandleGameEnd();
 
     Player*              localPlayer   = nullptr;
