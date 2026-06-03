@@ -32,7 +32,7 @@ sf::Packet& operator>>(sf::Packet& packet, Result& data)
 
 sf::Packet& operator<<(sf::Packet& packet, const GameResultData& data)
 {
-    packet << static_cast<int>(data.results.size());
+    packet << data.roomId << static_cast<int>(data.results.size());
     for (const Result& r : data.results)
         packet << r;
 
@@ -42,7 +42,7 @@ sf::Packet& operator<<(sf::Packet& packet, const GameResultData& data)
 sf::Packet& operator>>(sf::Packet& packet, GameResultData& data)
 {
     int count = 0;
-    packet >> count;
+    packet >> data.roomId >> count;
     data.results.resize(count);
     for (int i = 0; i < count; ++i)
         packet >> data.results[i];

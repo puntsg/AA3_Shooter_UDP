@@ -58,7 +58,6 @@ public:
     bool SendLoginRequest(const std::string& username, const std::string& password);
     bool SendRegisterRequest(const std::string& username, const std::string& password);
     bool SendRankingRequest(const std::string& username);
-    void NotifyPlayerWin(const std::string& username);
 
 private:
     NetworkManager();

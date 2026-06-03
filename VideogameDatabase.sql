@@ -40,15 +40,31 @@ DELIMITER ;
 DELIMITER //
 CREATE PROCEDURE `GetRanking`(IN iUsername VARCHAR(50))
 BEGIN
-    (SELECT Id, Username, Score 
-     FROM players 
-     ORDER BY Score DESC 
-     LIMIT 10)
-    UNION
-    (SELECT Id, Username, Score 
-     FROM players 
-     WHERE Username = iUsername)
-    ORDER BY Score DESC;
+    SELECT Id, Username, Score
+    FROM (
+        SELECT 0 AS SortGroup, topPlayers.Id, topPlayers.Username, topPlayers.Score
+        FROM (
+            SELECT Id, Username, Score
+            FROM players
+            ORDER BY Score DESC, Username ASC
+            LIMIT 10
+        ) AS topPlayers
+        UNION ALL
+        SELECT 1 AS SortGroup, p.Id, p.Username, p.Score
+        FROM players AS p
+        WHERE p.Username = iUsername
+          AND NOT EXISTS (
+              SELECT 1
+              FROM (
+                  SELECT Username
+                  FROM players
+                  ORDER BY Score DESC, Username ASC
+                  LIMIT 10
+              ) AS topNames
+              WHERE topNames.Username = p.Username
+          )
+    ) AS rankingRows
+    ORDER BY SortGroup ASC, Score DESC, Username ASC;
 END//
 DELIMITER ;
 

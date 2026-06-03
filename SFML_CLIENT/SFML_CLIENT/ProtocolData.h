@@ -230,6 +230,7 @@ struct Result {
     int scoredPoints = 0;
 };
 struct GameResultData {
+    std::string roomId;
     std::vector<Result> results;
 };
 sf::Packet& operator<<(sf::Packet& packet, const Result& data);

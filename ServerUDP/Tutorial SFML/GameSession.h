@@ -91,6 +91,7 @@ private:
     void SendPlayerDisconnected(int playerId);
 
     void FinishGame(int winnerPlayerId, bool cheating);
+    void ReportGameResult(int winnerPlayerId, int loserPlayerId);
 
     PlayerState& GetState(int playerId);
     int GetIndex(int playerId) const;
@@ -98,6 +99,7 @@ private:
 
     std::string roomId;
     int playerIds[2];
+    std::string playerNames[2];
     PlayerState states[2];
     std::vector<std::string> mapRows;
     sf::UdpSocket& socket;

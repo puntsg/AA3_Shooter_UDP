@@ -11,6 +11,16 @@ static constexpr float PLAYER_HIT_HALF_HEIGHT = 24.f;
 static constexpr float BULLET_HIT_RADIUS = 5.f;
 static constexpr float SHOT_SPAWN_OFFSET = 16.f;
 static constexpr float MAX_CLIENT_SHOT_OFFSET = 48.f;
+static constexpr const char* RANKING_SERVER_IP = "127.0.0.1";
+static constexpr unsigned short RANKING_SERVER_PORT = 55001;
+static constexpr int WIN_POINTS = 20;
+static constexpr int LOSE_POINTS = -5;
+
+static bool IsRankedRoomId(const std::string& roomId)
+{
+    const std::string rankedPrefix = "match_ranked_";
+    return roomId.compare(0, rankedPrefix.size(), rankedPrefix) == 0;
+}
 
 GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket, std::mutex& socketMutex)
     : roomId(roomId)
@@ -21,6 +31,10 @@ GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Inf
 {
     playerIds[0] = p1Info.playerId;
     playerIds[1] = p2Info.playerId;
+
+    // Guardamos nombres para poder actualizar ranking al acabar.
+    playerNames[0] = p1Info.username;
+    playerNames[1] = p2Info.username;
 
     // se llena con el hello udp
     states[0].ip = sf::IpAddress::Any;
@@ -662,11 +676,77 @@ void GameSession::FinishGame(int winnerPlayerId, bool cheating)
             socket.send(endPacket, states[1].ip, states[1].port);
     }
 
+    // El ranking lo reporta el servidor UDP, no el cliente.
+    if (IsRankedRoomId(roomId))
+    {
+        ReportGameResult(winnerPlayerId, loserPlayerId);
+    }
+    else
+    {
+        std::cout << "[UDP-END] Room " << roomId
+            << " amistosa: no se actualiza ranking."
+            << std::endl;
+    }
+
     std::cout << "[UDP-END] Room " << roomId
         << " winner: " << winnerPlayerId
         << " loser: " << loserPlayerId
         << " cheating: " << cheating
         << std::endl;
+}
+
+void GameSession::ReportGameResult(int winnerPlayerId, int loserPlayerId)
+{
+    if (!IsRankedRoomId(roomId))
+        return;
+
+    int winnerIndex = GetIndex(winnerPlayerId);
+    int loserIndex = GetIndex(loserPlayerId);
+
+    if (winnerIndex == -1 || loserIndex == -1)
+        return;
+
+    Result winnerResult;
+    winnerResult.username = playerNames[winnerIndex];
+    winnerResult.scoredPoints = WIN_POINTS;
+
+    Result loserResult;
+    loserResult.username = playerNames[loserIndex];
+    loserResult.scoredPoints = LOSE_POINTS;
+
+    GameResultData resultData;
+    resultData.roomId = roomId;
+    resultData.results.push_back(winnerResult);
+    resultData.results.push_back(loserResult);
+
+    // Avisamos al servidor TCP local, que es el que toca la base de datos.
+    auto serverIp = sf::IpAddress::resolve(RANKING_SERVER_IP);
+    if (!serverIp.has_value())
+    {
+        std::cout << "[UDP-END] No se pudo resolver el servidor de ranking." << std::endl;
+        return;
+    }
+
+    sf::TcpSocket tcpSocket;
+    if (tcpSocket.connect(*serverIp, RANKING_SERVER_PORT) != sf::Socket::Status::Done)
+    {
+        std::cout << "[UDP-END] No se pudo conectar al servidor de ranking." << std::endl;
+        return;
+    }
+
+    // El Game Server es quien decide el resultado real de la partida.
+    sf::Packet packet;
+    packet << PacketType::ENDGAME << resultData;
+
+    if (tcpSocket.send(packet) != sf::Socket::Status::Done)
+        std::cout << "[UDP-END] No se pudo enviar el resultado al ranking." << std::endl;
+    else
+        std::cout << "[UDP-END] Resultado enviado al ranking: "
+                  << winnerResult.username << " +" << WIN_POINTS
+                  << ", " << loserResult.username << " " << LOSE_POINTS
+                  << std::endl;
+
+    tcpSocket.disconnect();
 }
 
 PlayerState& GameSession::GetState(int playerId)
