@@ -3,6 +3,7 @@
 #include <SFML/Network.hpp>
 #include <SFML/System.hpp>
 #include <string>
+#include <vector>
 #include <mutex>
 #include "ProtocolData.h"
 
@@ -18,8 +19,8 @@
 #define PREDICT_TIMEOUT 0.2f
 #define DISCONNECT_TIMEOUT 3.f
 #define HELLO_TIMEOUT 8.f
-#define BULLET_SPEED 400.f;
-#define BULLET_MAX_DIST 1200.f;
+#define BULLET_SPEED 400.f
+#define BULLET_MAX_DIST 1200.f
 
 struct PlayerState
 {
@@ -43,6 +44,7 @@ struct BulletState
     sf::Vector2f velocity;
     bool flipped = false;
     int ownerID = 0;
+    float traveled = 0.f;
     bool active = true;
 };
 
@@ -75,7 +77,11 @@ private:
     std::vector<BulletState> bullets;
     std::mutex bulletsMutex;
 
-    bool ShotHitsPlayer(int shooterPlayerId, const ShootReplicateData& shot) const;
+    void LoadCollisionMap();
+    bool IsWallAt(const sf::Vector2f& position) const;
+    bool SegmentHitsWall(const sf::Vector2f& from, const sf::Vector2f& to) const;
+    bool PointHitsPlayer(const sf::Vector2f& point, int targetPlayerId) const;
+    bool SegmentHitsPlayer(const sf::Vector2f& from, const sf::Vector2f& to, int targetPlayerId) const;
     void HandleHit(int shooterPlayerId);
     void RespawnPlayer(int playerId);
 
@@ -85,6 +91,7 @@ private:
     void SendPlayerDisconnected(int playerId);
 
     void FinishGame(int winnerPlayerId, bool cheating);
+    void ReportGameResult(int winnerPlayerId, int loserPlayerId);
 
     PlayerState& GetState(int playerId);
     int GetIndex(int playerId) const;
@@ -92,7 +99,9 @@ private:
 
     std::string roomId;
     int playerIds[2];
+    std::string playerNames[2];
     PlayerState states[2];
+    std::vector<std::string> mapRows;
     sf::UdpSocket& socket;
     std::mutex& socketMutex;  // mutex compartido para proteger udpSocket
     bool finished;

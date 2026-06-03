@@ -34,3 +34,36 @@ sf::Packet& operator>>(sf::Packet& packet, SessionStartResponseData& data)
     packet >> data.success >> data.roomId >> data.message;
     return packet;
 }
+
+sf::Packet& operator<<(sf::Packet& packet, const Result& data)
+{
+    packet << data.username << data.scoredPoints;
+    return packet;
+}
+
+sf::Packet& operator>>(sf::Packet& packet, Result& data)
+{
+    packet >> data.username >> data.scoredPoints;
+    return packet;
+}
+
+sf::Packet& operator<<(sf::Packet& packet, const GameResultData& data)
+{
+    packet << data.roomId << static_cast<int>(data.results.size());
+    for (int i = 0; i < (int)data.results.size(); i++)
+        packet << data.results[i];
+
+    return packet;
+}
+
+sf::Packet& operator>>(sf::Packet& packet, GameResultData& data)
+{
+    int count = 0;
+    packet >> data.roomId >> count;
+    data.results.resize(count);
+
+    for (int i = 0; i < count; i++)
+        packet >> data.results[i];
+
+    return packet;
+}

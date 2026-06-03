@@ -2,7 +2,7 @@
 #include <SFML/System.hpp>
 #include "NetworkManager.h"
 #include "DatabaseConnector.h"
-constexpr unsigned short SERVER_PORT = 55000;
+constexpr unsigned short SERVER_PORT = 55001;
 
 int main()
 {
