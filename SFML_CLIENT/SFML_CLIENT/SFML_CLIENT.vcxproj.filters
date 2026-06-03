@@ -36,9 +36,6 @@
     <ClCompile Include="InputField.cpp">
       <Filter>Archivos de origen</Filter>
     </ClCompile>
-    <ClCompile Include="GameManager.cpp">
-      <Filter>Archivos de origen</Filter>
-    </ClCompile>
     <ClCompile Include="GameScene.cpp">
       <Filter>Archivos de origen</Filter>
     </ClCompile>
@@ -55,9 +52,6 @@
       <Filter>Archivos de origen</Filter>
     </ClCompile>
     <ClCompile Include="LauncherManager.cpp">
-      <Filter>Archivos de origen</Filter>
-    </ClCompile>
-    <ClCompile Include="HealthBehaviour.cpp">
       <Filter>Archivos de origen</Filter>
     </ClCompile>
     <ClCompile Include="Bullet.cpp">
@@ -98,9 +92,6 @@
     <ClInclude Include="UIElement.h">
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
-    <ClInclude Include="GameManager.h">
-      <Filter>Archivos de encabezado</Filter>
-    </ClInclude>
     <ClInclude Include="GameScene.h">
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
@@ -135,9 +126,6 @@
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
     <ClInclude Include="LauncherManager.h">
-      <Filter>Archivos de encabezado</Filter>
-    </ClInclude>
-    <ClInclude Include="HealthBehaviour.h">
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
     <ClInclude Include="Bullet.h">

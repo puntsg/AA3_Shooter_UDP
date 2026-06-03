@@ -7,20 +7,20 @@
 #include <mutex>
 #include "ProtocolData.h"
 
-#define MAX_HEALTH 5
-#define MAX_LIFES 3
-#define MAX_STRIKES 3
-#define P1_START_X 160.f
-#define P2_START_X 320.f
-#define START_Y 240.f
-#define RESPAWN_X 240.f
-#define RESPAWN_Y 240.f
-#define CHEAT_THRESHOLD 220.f
-#define PREDICT_TIMEOUT 0.2f
-#define DISCONNECT_TIMEOUT 3.f
-#define HELLO_TIMEOUT 8.f
-#define BULLET_SPEED 400.f
-#define BULLET_MAX_DIST 1200.f
+static const int MAX_HEALTH = 5;
+static const int MAX_LIFES = 3;
+static const int MAX_STRIKES = 3;
+static const float P1_START_X = 96.f;
+static const float P2_START_X = 576.f;
+static const float START_Y = 464.f;
+static const float RESPAWN_X = 336.f;
+static const float RESPAWN_Y = 336.f;
+static const float CHEAT_THRESHOLD = 220.f;
+static const float PREDICT_TIMEOUT = 0.2f;
+static const float DISCONNECT_TIMEOUT = 3.f;
+static const float HELLO_TIMEOUT = 8.f;
+static const float BULLET_SPEED = 400.f;
+static const float BULLET_MAX_DIST = 1200.f;
 
 struct PlayerState
 {

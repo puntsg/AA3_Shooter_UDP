@@ -163,7 +163,7 @@ void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short se
 
         {
             std::lock_guard<std::mutex> lock(sessionsMutex);
-            auto it = sessions.find(helloData.roomId);
+            std::map<std::string, std::shared_ptr<GameSession>>::iterator it = sessions.find(helloData.roomId);
             if (it != sessions.end())
                 helloSession = it->second;
         }

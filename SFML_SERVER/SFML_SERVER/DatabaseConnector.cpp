@@ -118,19 +118,22 @@ bool DatabaseConnector::AddPlayer(RegisterRequestData rrd)
 void DatabaseConnector::UpdateScore(Result r)
 {
 	try {
-		sql::PreparedStatement* pstmt = con->prepareStatement("CALL UpdateScore( ?, ? )");
-		pstmt->setString(1, r.username);
-		pstmt->setInt(2, r.scoredPoints);
+		// No usamos la stored procedure porque en algunas BD actualizaba mas jugadores.
+		sql::PreparedStatement* pstmt = con->prepareStatement(
+			"UPDATE players SET Score = GREATEST(0, CAST(Score AS SIGNED) + ?) WHERE Username = ?"
+		);
+		pstmt->setInt(1, r.scoredPoints);
+		pstmt->setString(2, r.username);
 		pstmt->execute();
-		while (pstmt->getMoreResults()) {
-			sql::ResultSet* extraRes = pstmt->getResultSet();
-			if (extraRes)
-				delete extraRes;
-		}
+
+		std::cout << "[SERVER] Ranking: " << r.username
+			<< " cambia " << r.scoredPoints
+			<< " puntos." << std::endl;
+
 		delete pstmt;
 	}
 	catch (sql::SQLException& e) {
-		std::cout << "AddPlayer error: " << e.what() << std::endl;
+		std::cout << "UpdateScore error: " << e.what() << std::endl;
 	}
 }
 
@@ -145,21 +148,41 @@ std::vector<RankingData> DatabaseConnector::GetRanking(std::string playerName, b
 	}
 
 	try {
-		sql::PreparedStatement* pstmt = con->prepareStatement("CALL GetRanking(?)");
-		pstmt->setString(1, playerName);
-		sql::ResultSet* res = pstmt->executeQuery();
+		sql::PreparedStatement* topStmt = con->prepareStatement(
+			"SELECT Username, Score FROM players ORDER BY Score DESC, Username ASC LIMIT 10"
+		);
+		sql::ResultSet* res = topStmt->executeQuery();
+		bool playerAlreadyListed = false;
+
 		while (res->next()) {
 			RankingData rd;
 			rd.playerName = res->getString("Username");
 			rd.score = res->getInt("Score");
+			if (rd.playerName == playerName)
+				playerAlreadyListed = true;
 			rankingDataEntries.push_back(rd);
 		}
 		delete res;
-		while (pstmt->getMoreResults()) {
-			sql::ResultSet* extraRes = pstmt->getResultSet();
-			if (extraRes) delete extraRes;
+		delete topStmt;
+
+		if (!playerName.empty() && !playerAlreadyListed) {
+			sql::PreparedStatement* playerStmt = con->prepareStatement(
+				"SELECT Username, Score FROM players WHERE Username = ? LIMIT 1"
+			);
+			playerStmt->setString(1, playerName);
+			sql::ResultSet* playerRes = playerStmt->executeQuery();
+
+			if (playerRes->next()) {
+				RankingData rd;
+				rd.playerName = playerRes->getString("Username");
+				rd.score = playerRes->getInt("Score");
+				rankingDataEntries.push_back(rd);
+			}
+
+			delete playerRes;
+			delete playerStmt;
 		}
-		delete pstmt;
+
 		success = true;
 	}
 	catch (sql::SQLException& e) {

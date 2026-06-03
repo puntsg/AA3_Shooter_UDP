@@ -3,7 +3,6 @@
 #include <SFML/Network.hpp>
 #include <string>
 #include <vector>
-#include <memory>
 #include "PacketTypes.h"
 #include "ProtocolData.h"
 #include "ClientState.h"
@@ -38,14 +37,7 @@ public:
     const ClientState& GetClientState() const;
     ClientState& GetClientState();
 
-    // --- Conexiones P2P (juego) ---
-    bool StartP2PListener(unsigned short port);
-    void AcceptPeerConnections();
-    void AddConnection(const std::string& ip, unsigned short port);
-    void SendToAllConnections(sf::Packet& packet);
-    const std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections() const;
-    std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections();
-    void ClearConnections();
+    void ClearGameNetworkState();
     bool SendUdpHelloReady();
 
     // Envia paquete UDP al GameServer
@@ -88,7 +80,4 @@ private:
     bool m_isConnected;
     bool m_udpSocketReady;
     ClientState m_clientState;
-    sf::TcpListener* listener;
-
-    std::vector<std::unique_ptr<sf::TcpSocket>> m_gameConnections;
 };

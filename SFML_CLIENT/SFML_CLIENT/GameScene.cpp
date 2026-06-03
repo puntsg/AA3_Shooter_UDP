@@ -3,19 +3,20 @@
 #include "SceneManager.h"
 #include "SpriteRenderer.h"
 #include "Constants.h"
+#include <cstddef>
 #include <iostream>
 
-static const sf::Vector2f P1_START_POS(160.f, 240.f);
-static const sf::Vector2f P2_START_POS(320.f, 240.f);
+static const sf::Vector2f P1_START_POS(96.f, 464.f);
+static const sf::Vector2f P2_START_POS(576.f, 464.f);
 
 static int GetMyMatchIndex()
 {
     const ClientState& state = NM.GetClientState();
 
-    for (int i = 0; i < (int)state.roomPlayers.size(); i++)
+    for (std::size_t i = 0; i < state.roomPlayers.size(); ++i)
     {
         if (state.roomPlayers[i].playerId == state.playerId)
-            return i;
+            return static_cast<int>(i);
     }
 
     return state.isHost ? 0 : 1;
@@ -54,8 +55,7 @@ void GameScene::OnEnter()
     m_gameOverTimer = 0.f;
     m_tauntLock     = 0.f;
     m_tauntCooldown = 0.f;
-    m_tauntTextTime = 0.f;
-    m_tauntText.clear();
+    m_tauntEchoBlockTime = 0.f;
     m_localHealth = MAX_HEALTH;
     m_localLifes = MAX_LIFES;
     m_rivalHealth = MAX_HEALTH;
@@ -74,7 +74,7 @@ void GameScene::OnEnter()
 
 void GameScene::HandleEvent(const sf::Event& event)
 {
-    if (const auto* key = event.getIf<sf::Event::KeyPressed>())
+    if (const sf::Event::KeyPressed* key = event.getIf<sf::Event::KeyPressed>())
     {
         if (key->code == sf::Keyboard::Key::T)
             SendTaunt();
@@ -89,16 +89,12 @@ void GameScene::Update(float dt)
 
     if (m_tauntCooldown > 0.f)
         m_tauntCooldown -= dt;
-    if (m_tauntTextTime > 0.f)
-        m_tauntTextTime -= dt;
-    if (m_localHitFlash > 0.f) 
-        m_localHitFlash -= dt;
-    if (m_rivalHitFlash > 0.f)
-        m_rivalHitFlash -= dt;
+    if (m_tauntEchoBlockTime > 0.f)
+        m_tauntEchoBlockTime -= dt;
 
     if (cs.hasTaunt)
     {
-        if (cs.tauntPlayerId != cs.playerId || m_tauntTextTime <= 0.f)
+        if (cs.tauntPlayerId != cs.playerId || m_tauntEchoBlockTime <= 0.f)
             PlayTaunt(cs.tauntPlayerId);
 
         cs.hasTaunt = false;
@@ -176,36 +172,38 @@ void GameScene::Update(float dt)
     }
 
     // Update & cull bullets
-    for (int i = 0; i < (int)bullets.size(); i++)
+    for (Bullet* bullet : bullets)
     {
-        bullets[i]->Update(dt);
-        bullets[i]->spriteRenderer->sprite->setPosition(bullets[i]->GetTransform()->position);
+        bullet->Update(dt);
+        bullet->spriteRenderer->sprite->setPosition(bullet->GetTransform()->position);
 
-        for (auto& row : tileMap->tileGrid)
+        for (std::vector<Tile*>& row : tileMap->tileGrid)
         {
             for (Tile* tile : row)
             {
                 if (!tile->hasCollision) continue;
                 SpriteRenderer* ts = dynamic_cast<SpriteRenderer*>(tile->GetRenderer());
                 if (!ts || !ts->sprite.has_value()) continue;
-                if (bullets[i]->spriteRenderer->sprite->getGlobalBounds()
+                if (bullet->spriteRenderer->sprite->getGlobalBounds()
                         .findIntersection(ts->sprite->getGlobalBounds()))
-                    bullets[i]->active = false;
+                    bullet->active = false;
             }
         }
 
+        if (!bullet->active)
+            continue;
         
         Player* hitted = localPlayer;
-        if (bullets[i]->isLocal)
+        if (bullet->isLocal)
             hitted = remotePlayer; 
         if (hitted && hitted->animRenderer && hitted->animRenderer->sprite.has_value())
         {
-            if (bullets[i]->spriteRenderer->sprite->getGlobalBounds().findIntersection(hitted->animRenderer->sprite->getGlobalBounds()))
-                bullets[i]->active = false;
+            if (bullet->spriteRenderer->sprite->getGlobalBounds().findIntersection(hitted->animRenderer->sprite->getGlobalBounds()))
+                bullet->active = false;
         }
     }
 
-    for (int i = (int)bullets.size() - 1; i >= 0; i--)
+    for (std::size_t i = bullets.size(); i-- > 0;)
     {
         if (!bullets[i]->active)
         {
@@ -229,7 +227,7 @@ void GameScene::ResolveCollisions(Player* p)
     AnimatedRenderer* ar = p->animRenderer;
     if (!ar || !ar->sprite.has_value()) return;
 
-    for (auto& row : tileMap->tileGrid)
+    for (std::vector<Tile*>& row : tileMap->tileGrid)
     {
         for (Tile* tile : row)
         {
@@ -237,7 +235,7 @@ void GameScene::ResolveCollisions(Player* p)
             SpriteRenderer* ts = dynamic_cast<SpriteRenderer*>(tile->GetRenderer());
             if (!ts || !ts->sprite.has_value()) continue;
 
-            auto collision = ar->sprite->getGlobalBounds()
+            std::optional<sf::FloatRect> collision = ar->sprite->getGlobalBounds()
                 .findIntersection(ts->sprite->getGlobalBounds());
             if (!collision.has_value()) continue;
 
@@ -277,7 +275,7 @@ void GameScene::ResolvePlayerCollision()
     sf::FloatRect a = la->sprite->getGlobalBounds();
     sf::FloatRect b = ra->sprite->getGlobalBounds();
 
-    auto inter = a.findIntersection(b);
+    std::optional<sf::FloatRect> inter = a.findIntersection(b);
     if (!inter.has_value()) return;
 
     // Empujar SOLO al jugador local, por el eje de menor penetracion (como con los tiles)
@@ -306,11 +304,6 @@ void GameScene::ResolvePlayerCollision()
     }
 
     la->sprite->setPosition(localPlayer->GetTransform()->position);
-}
-
-void GameScene::DrawHitOverlay(sf::RenderWindow& window, Player* p, float flashTimer, bool rivalTint)
-{
-
 }
 
 void GameScene::SendTransform()
@@ -349,8 +342,7 @@ void GameScene::PlayTaunt(int taunterId)
     ClientState& cs = NM.GetClientState();
     bool mine = taunterId == cs.playerId;
 
-    m_tauntText = mine ? "Te estas burlando!" : "El rival se esta burlando!";
-    m_tauntTextTime = TAUNT_TEXT_TIME;
+    m_tauntEchoBlockTime = TAUNT_ECHO_BLOCK_TIME;
 
     if (mine)
         m_tauntLock = TAUNT_LOCK_TIME;
@@ -368,13 +360,11 @@ void GameScene::ApplyPlayerHit(const PlayerHitData& data)
     {
         m_localHealth = data.newHealth;
         m_localLifes = data.newLifes;
-        m_rivalHitFlash = HIT_FLASH_TIME;
     }
     else
     {
         m_rivalHealth = data.newHealth;
         m_rivalLifes = data.newLifes;
-        m_rivalHitFlash = HIT_FLASH_TIME;
     }
 
     std::cout << "[CLIENT] Hit player " << data.targetPlayerId
@@ -405,21 +395,17 @@ void GameScene::Render(sf::RenderWindow& window)
     {
         sf::Text localHud(m_font, "Tu HP:" + std::to_string(m_localHealth) + " Vidas:" + std::to_string(m_localLifes), 16);
         localHud.setFillColor(sf::Color::Cyan);
-        localHud.setPosition({ 20.f, 18.f });
+        localHud.setPosition({ 20.f, static_cast<float>(Config::Window::HEIGHT) - 36.f });
         window.draw(localHud);
 
         sf::Text rivalHud(m_font, "Rival HP:" + std::to_string(m_rivalHealth) + " Vidas:" + std::to_string(m_rivalLifes), 16);
         rivalHud.setFillColor(sf::Color::Red);
-        rivalHud.setPosition({ 520.f, 18.f });
+        sf::FloatRect rivalBounds = rivalHud.getLocalBounds();
+        rivalHud.setPosition({
+            static_cast<float>(Config::Window::WIDTH) - rivalBounds.position.x - rivalBounds.size.x - 20.f,
+            static_cast<float>(Config::Window::HEIGHT) - 36.f
+        });
         window.draw(rivalHud);
-    }
-
-    if (m_tauntTextTime > 0.f && m_fontLoaded)
-    {
-        sf::Text text(m_font, m_tauntText, 24);
-        text.setFillColor(sf::Color::Yellow);
-        text.setPosition({ 240.f, 80.f });
-        window.draw(text);
     }
 }
 

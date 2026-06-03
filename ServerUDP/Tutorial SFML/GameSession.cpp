@@ -3,18 +3,45 @@
 #include <cmath>
 #include <fstream>
 #include <algorithm>
+#include <optional>
 
-static constexpr float TILE_SIZE = 32.f;
-static constexpr float PROJECTILE_STEP = 4.f;
-static constexpr float PLAYER_HIT_HALF_WIDTH = 16.f;
-static constexpr float PLAYER_HIT_HALF_HEIGHT = 24.f;
-static constexpr float BULLET_HIT_RADIUS = 5.f;
-static constexpr float SHOT_SPAWN_OFFSET = 16.f;
-static constexpr float MAX_CLIENT_SHOT_OFFSET = 48.f;
-static constexpr const char* RANKING_SERVER_IP = "127.0.0.1";
-static constexpr unsigned short RANKING_SERVER_PORT = 55001;
-static constexpr int WIN_POINTS = 20;
-static constexpr int LOSE_POINTS = -5;
+static const float TILE_SIZE = 32.f;
+static const float PROJECTILE_STEP = 4.f;
+static const float PLAYER_HIT_HALF_WIDTH = 16.f;
+static const float PLAYER_HIT_HALF_HEIGHT = 24.f;
+static const float BULLET_HIT_RADIUS = 5.f;
+static const float SHOT_SPAWN_OFFSET = 16.f;
+static const float MAX_CLIENT_SHOT_OFFSET = 48.f;
+static const char* RANKING_SERVER_IP = "127.0.0.1";
+static const unsigned short RANKING_SERVER_PORT = 55001;
+static const int WIN_POINTS = 20;
+static const int LOSE_POINTS = -5;
+static const int PLAYER_COUNT = 2;
+static const char RANKED_ROOM_PREFIX[] = "match_ranked_";
+
+static bool IsRankedRoomId(const std::string& roomId)
+{
+    return roomId.compare(0, sizeof(RANKED_ROOM_PREFIX) - 1, RANKED_ROOM_PREFIX) == 0;
+}
+
+static bool SendUdpPacket(
+    sf::UdpSocket& socket,
+    sf::Packet& packet,
+    const sf::IpAddress& ip,
+    unsigned short port,
+    const std::string& roomId,
+    const char* context,
+    int playerId)
+{
+    if (socket.send(packet, ip, port) == sf::Socket::Status::Done)
+        return true;
+
+    std::cout << "[UDP-SEND] Room " << roomId
+        << " failed " << context
+        << " to player " << playerId
+        << std::endl;
+    return false;
+}
 
 GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket, std::mutex& socketMutex)
     : roomId(roomId)
@@ -175,10 +202,10 @@ void GameSession::ProcessTauntPacket(int playerId)
     tauntPacket << PacketType::PLAYER_TAUNT << playerId;
 
     std::lock_guard<std::mutex> lock(socketMutex);
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < PLAYER_COUNT; ++i)
     {
         if (states[i].ready && !states[i].disconnected)
-            socket.send(tauntPacket, states[i].ip, states[i].port);
+            SendUdpPacket(socket, tauntPacket, states[i].ip, states[i].port, roomId, "PLAYER_TAUNT", playerIds[i]);
     }
 }
 
@@ -294,7 +321,7 @@ int GameSession::GetPlayerIdByAddress(const sf::IpAddress& ip, unsigned short po
 void GameSession::BroadcastGameState()
 {
     std::lock_guard<std::mutex> lock(socketMutex);
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < PLAYER_COUNT; ++i)
     {
         TransformData tData;
         tData.packetId = states[i].lastValidPacketId;
@@ -312,9 +339,9 @@ void GameSession::BroadcastGameState()
         packet << PacketType::TRANSFORM << tData;
 
         if (states[0].ready && !states[0].disconnected)
-            socket.send(packet, states[0].ip, states[0].port);
+            SendUdpPacket(socket, packet, states[0].ip, states[0].port, roomId, "TRANSFORM", playerIds[0]);
         if (states[1].ready && !states[1].disconnected)
-            socket.send(packet, states[1].ip, states[1].port);
+            SendUdpPacket(socket, packet, states[1].ip, states[1].port, roomId, "TRANSFORM", playerIds[1]);
     }
 }
 
@@ -325,7 +352,7 @@ void GameSession::SendToPlayer(int playerId, sf::Packet& packet)
         return;
 
     std::lock_guard<std::mutex> lock(socketMutex);
-    socket.send(packet, states[idx].ip, states[idx].port);
+    SendUdpPacket(socket, packet, states[idx].ip, states[idx].port, roomId, "direct packet", playerId);
 }
 
 void GameSession::SendToOther(int playerId, sf::Packet& packet)
@@ -336,7 +363,7 @@ void GameSession::SendToOther(int playerId, sf::Packet& packet)
         return;
 
     std::lock_guard<std::mutex> lock(socketMutex);
-    socket.send(packet, states[idx].ip, states[idx].port);
+    SendUdpPacket(socket, packet, states[idx].ip, states[idx].port, roomId, "packet to other", otherId);
 }
 
 void GameSession::UpdateBullets(float dt)
@@ -438,15 +465,22 @@ void GameSession::LoadCollisionMap()
     }
 
     mapRows = {
-        "################",
-        "#____________#_#",
-        "#______________#",
-        "#____#_________#",
-        "#_________#____#",
-        "#__#___________#",
-        "#______#_______#",
-        "#__#________#__#",
-        "################"
+        "#####################",
+        "#___________________#",
+        "#___________________#",
+        "#________###________#",
+        "#___________________#",
+        "#____###_____###____#",
+        "#___________________#",
+        "#_________###_______#",
+        "#___________________#",
+        "#___###_______###___#",
+        "#___________________#",
+        "#_______#####_______#",
+        "#___________________#",
+        "#____####___####____#",
+        "#___________________#",
+        "#####################"
     };
 
     std::cout << "[UDP-MAP] Using embedded fallback collision map." << std::endl;
@@ -565,9 +599,9 @@ void GameSession::HandleHit(int shooterPlayerId)
     {
         std::lock_guard<std::mutex> lock(socketMutex);
         if (states[0].ready && !states[0].disconnected)
-            socket.send(hitPacket, states[0].ip, states[0].port);
+            SendUdpPacket(socket, hitPacket, states[0].ip, states[0].port, roomId, "PLAYER_HIT", playerIds[0]);
         if (states[1].ready && !states[1].disconnected)
-            socket.send(hitPacket, states[1].ip, states[1].port);
+            SendUdpPacket(socket, hitPacket, states[1].ip, states[1].port, roomId, "PLAYER_HIT", playerIds[1]);
     }
 }
 
@@ -587,7 +621,7 @@ void GameSession::RespawnPlayer(int playerId)
 
 void GameSession::PredictPositions(float dt)
 {
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < PLAYER_COUNT; ++i)
     {
         PlayerState& state = states[i];
         float timeSincePacket = state.lastPacketClock.getElapsedTime().asSeconds();
@@ -599,7 +633,7 @@ void GameSession::PredictPositions(float dt)
 
 void GameSession::CheckDisconnects()
 {
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < PLAYER_COUNT; ++i)
     {
         if (!states[i].ready || states[i].disconnected)
             continue;
@@ -643,9 +677,9 @@ void GameSession::SendPlayerDisconnected(int playerId)
 
     std::lock_guard<std::mutex> lock(socketMutex);
     if (states[0].ready)
-        socket.send(packet, states[0].ip, states[0].port);
+        SendUdpPacket(socket, packet, states[0].ip, states[0].port, roomId, "PLAYER_DISCONNECTED", playerIds[0]);
     if (states[1].ready)
-        socket.send(packet, states[1].ip, states[1].port);
+        SendUdpPacket(socket, packet, states[1].ip, states[1].port, roomId, "PLAYER_DISCONNECTED", playerIds[1]);
 }
 
 void GameSession::FinishGame(int winnerPlayerId, bool cheating)
@@ -673,13 +707,22 @@ void GameSession::FinishGame(int winnerPlayerId, bool cheating)
     {
         std::lock_guard<std::mutex> lock(socketMutex);
         if (states[0].ready)
-            socket.send(endPacket, states[0].ip, states[0].port);
+            SendUdpPacket(socket, endPacket, states[0].ip, states[0].port, roomId, "ENDGAME", playerIds[0]);
         if (states[1].ready)
-            socket.send(endPacket, states[1].ip, states[1].port);
+            SendUdpPacket(socket, endPacket, states[1].ip, states[1].port, roomId, "ENDGAME", playerIds[1]);
     }
 
     // El ranking lo reporta el servidor UDP, no el cliente.
-    ReportGameResult(winnerPlayerId, loserPlayerId);
+    if (IsRankedRoomId(roomId))
+    {
+        ReportGameResult(winnerPlayerId, loserPlayerId);
+    }
+    else
+    {
+        std::cout << "[UDP-END] Room " << roomId
+            << " amistosa: no se actualiza ranking."
+            << std::endl;
+    }
 
     std::cout << "[UDP-END] Room " << roomId
         << " winner: " << winnerPlayerId
@@ -690,6 +733,9 @@ void GameSession::FinishGame(int winnerPlayerId, bool cheating)
 
 void GameSession::ReportGameResult(int winnerPlayerId, int loserPlayerId)
 {
+    if (!IsRankedRoomId(roomId))
+        return;
+
     int winnerIndex = GetIndex(winnerPlayerId);
     int loserIndex = GetIndex(loserPlayerId);
 
@@ -710,7 +756,7 @@ void GameSession::ReportGameResult(int winnerPlayerId, int loserPlayerId)
     resultData.results.push_back(loserResult);
 
     // Avisamos al servidor TCP local, que es el que toca la base de datos.
-    auto serverIp = sf::IpAddress::resolve(RANKING_SERVER_IP);
+    std::optional<sf::IpAddress> serverIp = sf::IpAddress::resolve(RANKING_SERVER_IP);
     if (!serverIp.has_value())
     {
         std::cout << "[UDP-END] No se pudo resolver el servidor de ranking." << std::endl;

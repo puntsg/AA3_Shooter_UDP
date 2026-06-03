@@ -11,7 +11,7 @@ ThreadPool::~ThreadPool()
     stopping = true;
     cv.notify_all();
 
-    for (auto& t : threads)
+    for (std::thread& t : threads)
     {
         if (t.joinable())
             t.join();
