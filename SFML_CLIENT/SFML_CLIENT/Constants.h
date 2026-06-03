@@ -13,10 +13,10 @@ namespace Config
 
     namespace Connection
     {
-        inline const char* SERVER_IP = "127.0.0.1";
-        inline const char* SERVER_IP_LAN = "127.0.0.1";
-        const unsigned short SERVER_PORT = 55000;
-        const unsigned short GAME_PORT = 55002;
+        inline const char* SERVER_IP     = "79.152.44.136"; // IP pública del router (internet)
+        inline const char* SERVER_IP_LAN = "192.168.1.45";  // IP local del PC servidor (LAN)
+        const unsigned short SERVER_PORT = 55001;
+        const unsigned short GAME_PORT   = 55002;
 
     }
 
