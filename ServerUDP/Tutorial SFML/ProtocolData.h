@@ -5,6 +5,9 @@
 #include <vector>
 #include "PacketTypes.h"
 
+static const int PACKET_FLAG_URGENT = 1;
+static const int PACKET_FLAG_CRITICAL = 2;
+
 inline sf::Packet& operator<<(sf::Packet& packet, const sf::Vector2f& v)
 {
     return packet << v.x << v.y;
@@ -54,6 +57,24 @@ struct UdpHelloData
     std::string roomId;
     int playerId = -1;
 };
+
+struct UdpPacketHeaderData
+{
+    int flags = 0;
+    int packetId = 0;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const UdpPacketHeaderData& data)
+{
+    return packet << data.flags << data.packetId;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, UdpPacketHeaderData& data)
+{
+    return packet >> data.flags >> data.packetId;
+}
+inline bool HasPacketFlag(int flags, int flag)
+{
+    return (flags & flag) != 0;
+}
 
 struct CriticalAckData
 {

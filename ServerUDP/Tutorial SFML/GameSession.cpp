@@ -80,7 +80,14 @@ GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Inf
 void GameSession::ProcessMovePacket(int playerId, sf::Packet& packet)
 {
     TransformData moveData;
-    packet >> moveData;
+    UdpPacketHeaderData header;
+    packet >> header >> moveData;
+    if (!static_cast<bool>(packet)
+        || header.packetId <= 0
+        || !HasPacketFlag(header.flags, PACKET_FLAG_URGENT))
+        return;
+
+    moveData.packetId = header.packetId;
 
     PlayerState& state = GetState(playerId);
     float timeSinceLast = state.lastPacketClock.restart().asSeconds();
@@ -137,16 +144,18 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
     PlayerState& shooter = GetState(playerId);
     shooter.lastPacketClock.restart();
 
-    int criticalPacketId = 0;
+    UdpPacketHeaderData header;
     ShootReplicateData shotData;
-    packet >> criticalPacketId >> shotData;
+    packet >> header >> shotData;
     bool validShotPacket = static_cast<bool>(packet);
 
-    if (criticalPacketId <= 0)
+    if (header.packetId <= 0
+        || !HasPacketFlag(header.flags, PACKET_FLAG_CRITICAL)
+        || !HasPacketFlag(header.flags, PACKET_FLAG_URGENT))
         return;
 
-    SendCriticalAck(playerId, criticalPacketId);
-    if (!StoreProcessedCriticalPacket(playerId, criticalPacketId))
+    SendCriticalAck(playerId, header.packetId);
+    if (!StoreProcessedCriticalPacket(playerId, header.packetId))
         return;
 
     shotData.flipped = shooter.flipped;
@@ -204,8 +213,12 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
     replicateData.flipped = shotData.flipped;
 
     int replicatePacketId = CreateCriticalPacketId();
+    UdpPacketHeaderData replicateHeader;
+    replicateHeader.flags = PACKET_FLAG_URGENT | PACKET_FLAG_CRITICAL;
+    replicateHeader.packetId = replicatePacketId;
+
     sf::Packet replicatePacket;
-    replicatePacket << PacketType::SHOOT_REPLICATE << replicatePacketId << replicateData;
+    replicatePacket << PacketType::SHOOT_REPLICATE << replicateHeader << replicateData;
     SendCriticalToPlayer(GetOtherPlayerId(playerId), replicatePacket, replicatePacketId, "SHOOT_REPLICATE");
 }
 
@@ -213,14 +226,17 @@ void GameSession::ProcessTauntPacket(int playerId, sf::Packet& packet)
 {
     GetState(playerId).lastPacketClock.restart();
 
-    int criticalPacketId = 0;
-    packet >> criticalPacketId;
+    UdpPacketHeaderData header;
+    packet >> header;
 
-    if (!static_cast<bool>(packet) || criticalPacketId <= 0)
+    if (!static_cast<bool>(packet)
+        || header.packetId <= 0
+        || !HasPacketFlag(header.flags, PACKET_FLAG_CRITICAL)
+        || !HasPacketFlag(header.flags, PACKET_FLAG_URGENT))
         return;
 
-    SendCriticalAck(playerId, criticalPacketId);
-    if (!StoreProcessedCriticalPacket(playerId, criticalPacketId))
+    SendCriticalAck(playerId, header.packetId);
+    if (!StoreProcessedCriticalPacket(playerId, header.packetId))
         return;
 
     for (int i = 0; i < PLAYER_COUNT; ++i)
@@ -228,8 +244,12 @@ void GameSession::ProcessTauntPacket(int playerId, sf::Packet& packet)
         if (states[i].ready && !states[i].disconnected)
         {
             int outgoingPacketId = CreateCriticalPacketId();
+            UdpPacketHeaderData outgoingHeader;
+            outgoingHeader.flags = PACKET_FLAG_URGENT | PACKET_FLAG_CRITICAL;
+            outgoingHeader.packetId = outgoingPacketId;
+
             sf::Packet tauntPacket;
-            tauntPacket << PacketType::PLAYER_TAUNT << outgoingPacketId << playerId;
+            tauntPacket << PacketType::PLAYER_TAUNT << outgoingHeader << playerId;
             SendCriticalToPlayer(playerIds[i], tauntPacket, outgoingPacketId, "PLAYER_TAUNT");
         }
     }
@@ -385,8 +405,12 @@ void GameSession::BroadcastGameState()
         tData.spriteEndX = states[i].spriteEndX;
         tData.spriteEndY = states[i].spriteEndY;
 
+        UdpPacketHeaderData header;
+        header.flags = PACKET_FLAG_URGENT;
+        header.packetId = tData.packetId;
+
         sf::Packet packet;
-        packet << PacketType::TRANSFORM << tData;
+        packet << PacketType::TRANSFORM << header << tData;
 
         if (states[0].ready && !states[0].disconnected)
             SendUdpPacket(socket, packet, states[0].ip, states[0].port, roomId, "TRANSFORM", playerIds[0]);

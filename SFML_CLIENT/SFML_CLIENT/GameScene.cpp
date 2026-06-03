@@ -337,8 +337,13 @@ void GameScene::SendTransform()
     data.spriteStartY = localPlayer->animRenderer->startOffset.y;
     data.spriteEndX = localPlayer->animRenderer->endOffset.x;
     data.spriteEndY = localPlayer->animRenderer->endOffset.y;
+
+    UdpPacketHeaderData header;
+    header.flags = PACKET_FLAG_URGENT;
+    header.packetId = data.packetId;
+
     sf::Packet packet;
-    packet << PacketType::TRANSFORM << data;
+    packet << PacketType::TRANSFORM << header << data;
     NM.SendUdp(packet);
 }
 

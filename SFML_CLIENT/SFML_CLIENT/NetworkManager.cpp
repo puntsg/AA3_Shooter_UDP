@@ -461,8 +461,12 @@ void NetworkManager::SendCriticalShoot(const ShootReplicateData& data)
 {
     int packetId = CreateCriticalPacketId();
 
+    UdpPacketHeaderData header;
+    header.flags = PACKET_FLAG_URGENT | PACKET_FLAG_CRITICAL;
+    header.packetId = packetId;
+
     sf::Packet packet;
-    packet << PacketType::SHOOT << packetId << data;
+    packet << PacketType::SHOOT << header << data;
 
     StorePendingCriticalPacket(packetId, packet);
     SendUdp(packet);
@@ -472,8 +476,12 @@ void NetworkManager::SendCriticalTaunt()
 {
     int packetId = CreateCriticalPacketId();
 
+    UdpPacketHeaderData header;
+    header.flags = PACKET_FLAG_URGENT | PACKET_FLAG_CRITICAL;
+    header.packetId = packetId;
+
     sf::Packet packet;
-    packet << PacketType::PLAYER_TAUNT << packetId;
+    packet << PacketType::PLAYER_TAUNT << header;
 
     StorePendingCriticalPacket(packetId, packet);
     SendUdp(packet);
@@ -525,8 +533,14 @@ void NetworkManager::ReceiveUdpData()
 
 void NetworkManager::HandleTransform(sf::Packet& packet)
 {
+    UdpPacketHeaderData header;
     TransformData data;
-    packet >> data;
+    packet >> header >> data;
+    if (!static_cast<bool>(packet) || !HasPacketFlag(header.flags, PACKET_FLAG_URGENT))
+        return;
+
+    if (header.packetId > 0)
+        data.packetId = header.packetId;
 
     for (TransformData& t : m_clientState.incomingTransforms)
     {
@@ -541,15 +555,17 @@ void NetworkManager::HandleTransform(sf::Packet& packet)
 
 void NetworkManager::HandleShootReplicate(sf::Packet& packet)
 {
-    int packetId = 0;
+    UdpPacketHeaderData header;
     ShootReplicateData data;
 
-    packet >> packetId >> data;
-    if (!static_cast<bool>(packet) || packetId <= 0)
+    packet >> header >> data;
+    if (!static_cast<bool>(packet)
+        || header.packetId <= 0
+        || !HasPacketFlag(header.flags, PACKET_FLAG_CRITICAL))
         return;
 
-    SendCriticalAck(packetId);
-    if (!StoreReceivedCriticalPacket(packetId))
+    SendCriticalAck(header.packetId);
+    if (!StoreReceivedCriticalPacket(header.packetId))
         return;
 
     m_clientState.lastShootReplicate = data;
@@ -564,15 +580,17 @@ void NetworkManager::HandlePlayerHit(sf::Packet& packet)
 
 void NetworkManager::HandlePlayerTaunt(sf::Packet& packet)
 {
-    int packetId = 0;
+    UdpPacketHeaderData header;
     int tauntPlayerId = -1;
 
-    packet >> packetId >> tauntPlayerId;
-    if (!static_cast<bool>(packet) || packetId <= 0)
+    packet >> header >> tauntPlayerId;
+    if (!static_cast<bool>(packet)
+        || header.packetId <= 0
+        || !HasPacketFlag(header.flags, PACKET_FLAG_CRITICAL))
         return;
 
-    SendCriticalAck(packetId);
-    if (!StoreReceivedCriticalPacket(packetId))
+    SendCriticalAck(header.packetId);
+    if (!StoreReceivedCriticalPacket(header.packetId))
         return;
 
     m_clientState.tauntPlayerId = tauntPlayerId;
