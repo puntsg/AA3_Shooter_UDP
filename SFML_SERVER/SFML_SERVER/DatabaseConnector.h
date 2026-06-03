@@ -11,10 +11,9 @@
 #include "SHA256.h"
 
 
-#define LISTENER_PORT 55000
 #define SERVER "tcp://127.0.0.1:3306"
 #define USERNAME "root"
-#define PASSWORD "enti"
+#define PASSWORD ""
 #define DATABASE "videogame"
 
 
@@ -41,7 +40,6 @@ public:
 	void DisconnectDatabase();
 
 	//Get database data funcs
-	void GetAllPlayers();
 	bool LoginPlayer(LoginRequestData lrd);
 	bool AddPlayer(RegisterRequestData rrd);
 	void UpdateScore(Result r);

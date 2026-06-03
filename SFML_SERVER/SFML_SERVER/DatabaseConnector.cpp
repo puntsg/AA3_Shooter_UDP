@@ -43,16 +43,6 @@ std::string DatabaseConnector::HashPassword(const std::string& password)
 	return sha.toString(sha.digest());
 }
 
-void DatabaseConnector::GetAllPlayers()
-{
-	sql::PreparedStatement* pstmt = con->prepareStatement("SELECT * FROM players");
-	sql::ResultSet* res = pstmt->executeQuery();
-	while (res->next())
-		std::cout << "Id: " << res->getInt("Id") << " | User: " << res->getString("Username") << " | Score: " << res->getInt("Score") << std::endl;
-	delete res;
-	delete pstmt;
-}
-
 bool DatabaseConnector::LoginPlayer(LoginRequestData lrd)
 {
 	if (con == nullptr)

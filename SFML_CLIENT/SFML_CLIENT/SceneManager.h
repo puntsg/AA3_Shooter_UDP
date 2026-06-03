@@ -23,7 +23,6 @@ public:
 	}
 
 	bool AddScene(std::string name, Scene* scene);
-	Scene* GetScene(std::string name);
 
 	bool InitFirstScene(std::string name);
 

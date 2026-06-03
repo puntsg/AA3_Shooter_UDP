@@ -19,7 +19,6 @@ public:
     Room* GetRoomByPlayerId(int playerId);
 
     bool RoomExists(const std::string& roomId) const;
-    bool IsRoomFull(const std::string& roomId) const;
 
     void PrintRooms() const;
 
