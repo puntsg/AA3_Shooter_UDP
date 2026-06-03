@@ -87,6 +87,10 @@ void GameScene::Update(float dt)
         m_tauntCooldown -= dt;
     if (m_tauntTextTime > 0.f)
         m_tauntTextTime -= dt;
+    if (m_localHitFlash > 0.f) 
+        m_localHitFlash -= dt;
+    if (m_rivalHitFlash > 0.f)
+        m_rivalHitFlash -= dt;
 
     if (cs.hasTaunt)
     {
@@ -120,7 +124,9 @@ void GameScene::Update(float dt)
         sf::Vector2f dir = cs.lastShootReplicate.flipped
             ? sf::Vector2f(-1.f, 0.f)
             : sf::Vector2f( 1.f, 0.f);
-        bullets.push_back(new Bullet(cs.lastShootReplicate.position, dir));
+        Bullet* rivalBullet = new Bullet(cs.lastShootReplicate.position, dir);
+        rivalBullet->isLocal = false;
+        bullets.push_back(rivalBullet);
         cs.hasShootReplicate = false;
     }
 
@@ -179,6 +185,16 @@ void GameScene::Update(float dt)
                         .findIntersection(ts->sprite->getGlobalBounds()))
                     bullets[i]->active = false;
             }
+        }
+
+        
+        Player* hitted = localPlayer;
+        if (bullets[i]->isLocal)
+            hitted = remotePlayer; 
+        if (hitted && hitted->animRenderer && hitted->animRenderer->sprite.has_value())
+        {
+            if (bullets[i]->spriteRenderer->sprite->getGlobalBounds().findIntersection(hitted->animRenderer->sprite->getGlobalBounds()))
+                bullets[i]->active = false;
         }
     }
 
@@ -248,6 +264,11 @@ void GameScene::ResolveCollisions(Player* p)
     }
 }
 
+void GameScene::DrawHitOverlay(sf::RenderWindow& window, Player* p, float flashTimer, bool rivalTint)
+{
+
+}
+
 void GameScene::SendTransform()
 {
     TransformData data;
@@ -300,11 +321,13 @@ void GameScene::ApplyPlayerHit(const PlayerHitData& data)
     {
         m_localHealth = data.newHealth;
         m_localLifes = data.newLifes;
+        m_rivalHitFlash = HIT_FLASH_TIME;
     }
     else
     {
         m_rivalHealth = data.newHealth;
         m_rivalLifes = data.newLifes;
+        m_rivalHitFlash = HIT_FLASH_TIME;
     }
 
     std::cout << "[CLIENT] Hit player " << data.targetPlayerId

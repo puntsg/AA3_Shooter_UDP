@@ -278,6 +278,10 @@ void GameSession::SendToOther(int playerId, sf::Packet& packet)
     socket.send(packet, states[idx].ip, states[idx].port);
 }
 
+void GameSession::UpdateBullets(float dt)
+{
+}
+
 bool GameSession::ShotHitsPlayer(int shooterPlayerId, const ShootReplicateData& shot) const
 {
     int shooterIndex = GetIndex(shooterPlayerId);
