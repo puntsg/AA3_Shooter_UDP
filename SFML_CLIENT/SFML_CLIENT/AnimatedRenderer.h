@@ -2,6 +2,7 @@
 #include "Renderer.h"
 #include <functional>
 #include <optional>
+#include <SFML/Graphics/Color.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Texture.hpp>
 
@@ -25,6 +26,7 @@ private:
 public:
 	sf::Texture texture;
 	std::optional<sf::Sprite> sprite;
+	sf::Color tint = sf::Color::White;
 	bool flipped = false;
 	std::function<void()> onAnimationLooped;
 
