@@ -166,9 +166,7 @@ void GameScene::Update(float dt)
         bullets.push_back(localPlayer->pendingBullet);
         localPlayer->pendingBullet = nullptr;
 
-        sf::Packet shootPacket;
-        shootPacket << PacketType::SHOOT << shotData;
-        NM.SendUdp(shootPacket);
+        NM.SendCriticalShoot(shotData);
     }
 
     // Update & cull bullets
@@ -352,9 +350,7 @@ void GameScene::SendTaunt()
     m_tauntCooldown = TAUNT_COOLDOWN;
     PlayTaunt(NM.GetClientState().playerId);
 
-    sf::Packet packet;
-    packet << PacketType::PLAYER_TAUNT;
-    NM.SendUdp(packet);
+    NM.SendCriticalTaunt();
 }
 
 void GameScene::PlayTaunt(int taunterId)

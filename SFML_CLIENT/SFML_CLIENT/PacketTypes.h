@@ -46,7 +46,8 @@ enum PacketType
 	ERROR_MESSAGE,
 
 	// UDP
-	UDP_HELLO = 102
+	UDP_HELLO = 102,
+	CRITICAL_ACK = 103
 };
 
 inline sf::Packet& operator <<(sf::Packet& packet, const PacketType& type)

@@ -55,6 +55,19 @@ struct UdpHelloData
     int playerId = -1;
 };
 
+struct CriticalAckData
+{
+    int packetId = 0;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const CriticalAckData& data)
+{
+    return packet << data.packetId;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, CriticalAckData& data)
+{
+    return packet >> data.packetId;
+}
+
 sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data);
 sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data);
 sf::Packet& operator<<(sf::Packet& packet, const SessionStartResponseData& data);

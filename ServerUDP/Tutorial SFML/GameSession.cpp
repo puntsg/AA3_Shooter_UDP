@@ -18,6 +18,9 @@ static const unsigned short RANKING_SERVER_PORT = 55001;
 static const int WIN_POINTS = 20;
 static const int LOSE_POINTS = -5;
 static const int PLAYER_COUNT = 2;
+static const float CRITICAL_RESEND_INTERVAL = 0.08f;
+static const int CRITICAL_MAX_ATTEMPTS = 6;
+static const std::size_t CRITICAL_HISTORY_LIMIT = 64;
 static const char RANKED_ROOM_PREFIX[] = "match_ranked_";
 
 static bool IsRankedRoomId(const std::string& roomId)
@@ -50,6 +53,7 @@ GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Inf
     , socketMutex(socketMutex)
     , finished(false)
     , bothReady(false)
+    , nextCriticalPacketId(0)
 {
     playerIds[0] = p1Info.playerId;
     playerIds[1] = p2Info.playerId;
@@ -133,9 +137,17 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
     PlayerState& shooter = GetState(playerId);
     shooter.lastPacketClock.restart();
 
+    int criticalPacketId = 0;
     ShootReplicateData shotData;
-    packet >> shotData;
+    packet >> criticalPacketId >> shotData;
     bool validShotPacket = static_cast<bool>(packet);
+
+    if (criticalPacketId <= 0)
+        return;
+
+    SendCriticalAck(playerId, criticalPacketId);
+    if (!StoreProcessedCriticalPacket(playerId, criticalPacketId))
+        return;
 
     shotData.flipped = shooter.flipped;
     float dir = shotData.flipped ? 1.f : -1.f;
@@ -191,23 +203,57 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
     replicateData.position = shotData.position;
     replicateData.flipped = shotData.flipped;
 
+    int replicatePacketId = CreateCriticalPacketId();
     sf::Packet replicatePacket;
-    replicatePacket << PacketType::SHOOT_REPLICATE << replicateData;
-    SendToOther(playerId, replicatePacket);
+    replicatePacket << PacketType::SHOOT_REPLICATE << replicatePacketId << replicateData;
+    SendCriticalToPlayer(GetOtherPlayerId(playerId), replicatePacket, replicatePacketId, "SHOOT_REPLICATE");
 }
 
-void GameSession::ProcessTauntPacket(int playerId)
+void GameSession::ProcessTauntPacket(int playerId, sf::Packet& packet)
 {
     GetState(playerId).lastPacketClock.restart();
 
-    sf::Packet tauntPacket;
-    tauntPacket << PacketType::PLAYER_TAUNT << playerId;
+    int criticalPacketId = 0;
+    packet >> criticalPacketId;
 
-    std::lock_guard<std::mutex> lock(socketMutex);
+    if (!static_cast<bool>(packet) || criticalPacketId <= 0)
+        return;
+
+    SendCriticalAck(playerId, criticalPacketId);
+    if (!StoreProcessedCriticalPacket(playerId, criticalPacketId))
+        return;
+
     for (int i = 0; i < PLAYER_COUNT; ++i)
     {
         if (states[i].ready && !states[i].disconnected)
-            SendUdpPacket(socket, tauntPacket, states[i].ip, states[i].port, roomId, "PLAYER_TAUNT", playerIds[i]);
+        {
+            int outgoingPacketId = CreateCriticalPacketId();
+            sf::Packet tauntPacket;
+            tauntPacket << PacketType::PLAYER_TAUNT << outgoingPacketId << playerId;
+            SendCriticalToPlayer(playerIds[i], tauntPacket, outgoingPacketId, "PLAYER_TAUNT");
+        }
+    }
+}
+
+void GameSession::ProcessCriticalAckPacket(int playerId, sf::Packet& packet)
+{
+    CriticalAckData ackData;
+    packet >> ackData;
+    if (!static_cast<bool>(packet))
+        return;
+
+    std::lock_guard<std::mutex> lock(criticalPacketsMutex);
+    for (std::size_t i = 0; i < pendingCriticalPackets.size(); )
+    {
+        if (pendingCriticalPackets[i].packetId == ackData.packetId
+            && pendingCriticalPackets[i].targetPlayerId == playerId)
+        {
+            pendingCriticalPackets.erase(pendingCriticalPackets.begin() + i);
+        }
+        else
+        {
+            i++;
+        }
     }
 }
 
@@ -284,6 +330,7 @@ void GameSession::Update(float dt)
 
     PredictPositions(dt);
     UpdateBullets(dt);
+    UpdateCriticalPackets();
     if (finished)
         return;
 
@@ -367,6 +414,121 @@ void GameSession::SendToOther(int playerId, sf::Packet& packet)
 
     std::lock_guard<std::mutex> lock(socketMutex);
     SendUdpPacket(socket, packet, states[idx].ip, states[idx].port, roomId, "packet to other", otherId);
+}
+
+void GameSession::SendCriticalToPlayer(int playerId, sf::Packet& packet, int packetId, const char* context)
+{
+    int idx = GetIndex(playerId);
+    if (idx == -1 || !states[idx].ready || states[idx].disconnected)
+        return;
+
+    PendingCriticalPacket pending;
+    pending.packetId = packetId;
+    pending.targetPlayerId = playerId;
+    pending.packet = packet;
+    pending.attempts = 1;
+    pending.nextSendTime = criticalClock.getElapsedTime().asSeconds() + CRITICAL_RESEND_INTERVAL;
+
+    {
+        std::lock_guard<std::mutex> lock(criticalPacketsMutex);
+        pendingCriticalPackets.push_back(pending);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(socketMutex);
+        SendUdpPacket(socket, packet, states[idx].ip, states[idx].port, roomId, context, playerId);
+    }
+}
+
+void GameSession::SendCriticalAck(int playerId, int packetId)
+{
+    int idx = GetIndex(playerId);
+    if (idx == -1 || packetId <= 0 || states[idx].disconnected)
+        return;
+
+    CriticalAckData ackData;
+    ackData.packetId = packetId;
+
+    sf::Packet packet;
+    packet << PacketType::CRITICAL_ACK << ackData;
+
+    std::lock_guard<std::mutex> lock(socketMutex);
+    SendUdpPacket(socket, packet, states[idx].ip, states[idx].port, roomId, "CRITICAL_ACK", playerId);
+}
+
+void GameSession::UpdateCriticalPackets()
+{
+    float now = criticalClock.getElapsedTime().asSeconds();
+    std::vector<PendingCriticalPacket> packetsToSend;
+
+    {
+        std::lock_guard<std::mutex> lock(criticalPacketsMutex);
+
+        for (std::size_t i = 0; i < pendingCriticalPackets.size(); )
+        {
+            PendingCriticalPacket& pending = pendingCriticalPackets[i];
+
+            if (pending.attempts >= CRITICAL_MAX_ATTEMPTS)
+            {
+                std::cout << "[UDP-CRITICAL] Room " << roomId
+                    << " packet without ACK: " << pending.packetId
+                    << " target: " << pending.targetPlayerId
+                    << std::endl;
+                pendingCriticalPackets.erase(pendingCriticalPackets.begin() + i);
+                continue;
+            }
+
+            if (now >= pending.nextSendTime)
+            {
+                pending.attempts++;
+                pending.nextSendTime = now + CRITICAL_RESEND_INTERVAL;
+                packetsToSend.push_back(pending);
+            }
+
+            i++;
+        }
+    }
+
+    for (PendingCriticalPacket& pending : packetsToSend)
+    {
+        int idx = GetIndex(pending.targetPlayerId);
+        if (idx == -1 || !states[idx].ready || states[idx].disconnected)
+            continue;
+
+        std::lock_guard<std::mutex> lock(socketMutex);
+        SendUdpPacket(socket, pending.packet, states[idx].ip, states[idx].port, roomId, "critical retry", pending.targetPlayerId);
+    }
+}
+
+bool GameSession::StoreProcessedCriticalPacket(int playerId, int packetId)
+{
+    int idx = GetIndex(playerId);
+    if (idx == -1 || packetId <= 0)
+        return false;
+
+    std::lock_guard<std::mutex> lock(criticalPacketsMutex);
+    std::vector<int>& processedPackets = states[idx].processedCriticalPackets;
+    for (int processedPacketId : processedPackets)
+    {
+        if (processedPacketId == packetId)
+            return false;
+    }
+
+    processedPackets.push_back(packetId);
+    if (processedPackets.size() > CRITICAL_HISTORY_LIMIT)
+        processedPackets.erase(processedPackets.begin());
+
+    return true;
+}
+
+int GameSession::CreateCriticalPacketId()
+{
+    std::lock_guard<std::mutex> lock(criticalPacketsMutex);
+    nextCriticalPacketId++;
+    if (nextCriticalPacketId <= 0)
+        nextCriticalPacketId = 1;
+
+    return nextCriticalPacketId;
 }
 
 void GameSession::UpdateBullets(float dt)

@@ -207,7 +207,10 @@ void GameServer::RouteUdpPacket(const sf::IpAddress& senderIp, unsigned short se
         session->ProcessShotPacket(playerId, packet);
         break;
     case PLAYER_TAUNT:
-        session->ProcessTauntPacket(playerId);
+        session->ProcessTauntPacket(playerId, packet);
+        break;
+    case CRITICAL_ACK:
+        session->ProcessCriticalAckPacket(playerId, packet);
         break;
     case DISCONNECT:
         session->DisconnectPlayer(playerId);

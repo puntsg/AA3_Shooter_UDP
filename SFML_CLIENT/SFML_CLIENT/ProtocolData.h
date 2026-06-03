@@ -30,6 +30,19 @@ inline sf::Packet& operator>>(sf::Packet& packet, UdpHelloData& data)
     return packet >> data.roomId >> data.playerId;
 }
 
+struct CriticalAckData
+{
+    int packetId = 0;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const CriticalAckData& data)
+{
+    return packet << data.packetId;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, CriticalAckData& data)
+{
+    return packet >> data.packetId;
+}
+
 // Pos y orientacion
 struct TransformData
 {
