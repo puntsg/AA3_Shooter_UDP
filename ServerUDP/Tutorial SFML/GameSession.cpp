@@ -16,6 +16,12 @@ static constexpr unsigned short RANKING_SERVER_PORT = 55001;
 static constexpr int WIN_POINTS = 20;
 static constexpr int LOSE_POINTS = -5;
 
+static bool IsRankedRoomId(const std::string& roomId)
+{
+    const std::string rankedPrefix = "match_ranked_";
+    return roomId.compare(0, rankedPrefix.size(), rankedPrefix) == 0;
+}
+
 GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket, std::mutex& socketMutex)
     : roomId(roomId)
     , socket(socket)
@@ -671,7 +677,16 @@ void GameSession::FinishGame(int winnerPlayerId, bool cheating)
     }
 
     // El ranking lo reporta el servidor UDP, no el cliente.
-    ReportGameResult(winnerPlayerId, loserPlayerId);
+    if (IsRankedRoomId(roomId))
+    {
+        ReportGameResult(winnerPlayerId, loserPlayerId);
+    }
+    else
+    {
+        std::cout << "[UDP-END] Room " << roomId
+            << " amistosa: no se actualiza ranking."
+            << std::endl;
+    }
 
     std::cout << "[UDP-END] Room " << roomId
         << " winner: " << winnerPlayerId
@@ -682,6 +697,9 @@ void GameSession::FinishGame(int winnerPlayerId, bool cheating)
 
 void GameSession::ReportGameResult(int winnerPlayerId, int loserPlayerId)
 {
+    if (!IsRankedRoomId(roomId))
+        return;
+
     int winnerIndex = GetIndex(winnerPlayerId);
     int loserIndex = GetIndex(loserPlayerId);
 

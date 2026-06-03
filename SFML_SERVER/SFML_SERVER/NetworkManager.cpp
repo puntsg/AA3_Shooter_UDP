@@ -35,6 +35,12 @@ static std::string GetCurrentMapFilename()
     return "";
 }
 
+static bool IsRankedRoomId(const std::string& roomId)
+{
+    const std::string rankedPrefix = "match_ranked_";
+    return roomId.compare(0, rankedPrefix.size(), rankedPrefix) == 0;
+}
+
 NetworkManager::NetworkManager()
     : m_isRunning(false)
     , m_nextPlayerId(1)
@@ -391,8 +397,18 @@ void NetworkManager::HandleEndGame(ConnectedClient& client, sf::Packet& packet)
 
     // Este ENDGAME viene del ServerUDP, no del cliente.
     // El UDP ya ha decidido ganador y perdedor.
-    for (const Result& r : resultData.results)
-        DC.UpdateScore(r);
+    if (IsRankedRoomId(resultData.roomId))
+    {
+        for (const Result& r : resultData.results)
+            DC.UpdateScore(r);
+    }
+    else
+    {
+        std::cout << "[SERVER] ENDGAME de sala no ranked "
+            << resultData.roomId
+            << ": no se actualiza ranking."
+            << std::endl;
+    }
 
     // Borramos por roomId porque la conexion TCP la abre el ServerUDP.
     if (!resultData.roomId.empty())
