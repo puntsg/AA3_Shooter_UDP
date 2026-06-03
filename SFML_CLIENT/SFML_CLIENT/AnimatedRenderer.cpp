@@ -27,6 +27,7 @@ void AnimatedRenderer::render(sf::RenderWindow& window)
 {
 	if (sprite.has_value()) {
 		sprite->setPosition(transform->position);
+		sprite->setColor(tint);
 		window.draw(*sprite);
 	}
 }
@@ -56,4 +57,5 @@ void AnimatedRenderer::Update(float dt)
 	if (flipped)
 		sprite->setScale({ -sprite->getScale().x,sprite->getScale().y });
 	sprite->setPosition(transform->position);
+	sprite->setColor(tint);
 }

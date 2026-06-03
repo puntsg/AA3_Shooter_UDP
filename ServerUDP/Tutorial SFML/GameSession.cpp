@@ -1,9 +1,16 @@
 #include "GameSession.h"
 #include <iostream>
 #include <cmath>
+#include <fstream>
+#include <algorithm>
 
-static constexpr float SHOT_MAX_DIST = 430.f;
-static constexpr float SHOT_HIT_HEIGHT = 32.f;
+static constexpr float TILE_SIZE = 32.f;
+static constexpr float PROJECTILE_STEP = 4.f;
+static constexpr float PLAYER_HIT_HALF_WIDTH = 16.f;
+static constexpr float PLAYER_HIT_HALF_HEIGHT = 24.f;
+static constexpr float BULLET_HIT_RADIUS = 5.f;
+static constexpr float SHOT_SPAWN_OFFSET = 16.f;
+static constexpr float MAX_CLIENT_SHOT_OFFSET = 48.f;
 
 GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Info, const LobbyPlayerInfo& p2Info, sf::UdpSocket& socket, std::mutex& socketMutex)
     : roomId(roomId)
@@ -23,6 +30,8 @@ GameSession::GameSession(const std::string& roomId, const LobbyPlayerInfo& p1Inf
     states[1].ip = sf::IpAddress::Any;
     states[1].port = 0;
     states[1].position = sf::Vector2f(P2_START_X, START_Y);
+
+    LoadCollisionMap();
 
     std::cout << "Room " << roomId << " esperando UDP. P1: " << p1Info.playerId
               << " P2: " << p2Info.playerId << std::endl;
@@ -85,17 +94,57 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
 
     ShootReplicateData shotData;
     packet >> shotData;
+    bool validShotPacket = static_cast<bool>(packet);
 
-    if (!packet)
+    shotData.flipped = shooter.flipped;
+    float dir = shotData.flipped ? -1.f : 1.f;
+    sf::Vector2f authoritativePos = shooter.position + sf::Vector2f(dir * SHOT_SPAWN_OFFSET, 0.f);
+
+    if (!validShotPacket)
     {
-        shotData.position = shooter.position;
-        shotData.flipped = shooter.flipped;
+        shotData.position = authoritativePos;
+    }
+    else
+    {
+        float dx = shotData.position.x - authoritativePos.x;
+        float dy = shotData.position.y - authoritativePos.y;
+        float offset = std::sqrt(dx * dx + dy * dy);
+        if (offset > MAX_CLIENT_SHOT_OFFSET)
+        {
+            std::cout << "[UDP-SHOT-WARN] Room " << roomId
+                << " shooter: " << playerId
+                << " ignored client shot offset: " << offset
+                << std::endl;
+            shotData.position = authoritativePos;
+        }
     }
 
     std::cout << "[UDP-SHOT] Room " << roomId
         << " shooter: " << playerId
         << " pos: " << shotData.position.x << ", " << shotData.position.y
         << std::endl;
+
+    BulletState bullet;
+    bullet.position = shotData.position;
+    bullet.velocity = sf::Vector2f(dir * BULLET_SPEED, 0.f);
+    bullet.flipped = shotData.flipped;
+    bullet.ownerID = playerId;
+    bullet.traveled = 0.f;
+    bullet.active = true;
+
+    if (IsWallAt(bullet.position))
+    {
+        std::cout << "[UDP-MISS] Room " << roomId
+            << " shooter: " << playerId
+            << " reason: wall_spawn"
+            << std::endl;
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(bulletsMutex);
+        bullets.push_back(bullet);
+    }
 
     ShootReplicateData replicateData;
     replicateData.position = shotData.position;
@@ -104,13 +153,6 @@ void GameSession::ProcessShotPacket(int playerId, sf::Packet& packet)
     sf::Packet replicatePacket;
     replicatePacket << PacketType::SHOOT_REPLICATE << replicateData;
     SendToOther(playerId, replicatePacket);
-
-    if (ShotHitsPlayer(playerId, shotData))
-        HandleHit(playerId);
-    else
-        std::cout << "[UDP-MISS] Room " << roomId
-            << " shooter: " << playerId
-            << std::endl;
 }
 
 void GameSession::ProcessTauntPacket(int playerId)
@@ -199,6 +241,9 @@ void GameSession::Update(float dt)
         return;
 
     PredictPositions(dt);
+    UpdateBullets(dt);
+    if (finished)
+        return;
 
     
     //60fps = 0.016
@@ -280,30 +325,187 @@ void GameSession::SendToOther(int playerId, sf::Packet& packet)
 
 void GameSession::UpdateBullets(float dt)
 {
+    if (dt <= 0.f)
+        return;
+
+    std::vector<int> hitOwners;
+
+    {
+        std::lock_guard<std::mutex> lock(bulletsMutex);
+
+        for (BulletState& bullet : bullets)
+        {
+            if (!bullet.active)
+                continue;
+
+            sf::Vector2f previousPos = bullet.position;
+            sf::Vector2f delta = bullet.velocity * dt;
+            bullet.position += delta;
+            bullet.traveled += std::sqrt(delta.x * delta.x + delta.y * delta.y);
+
+            if (SegmentHitsWall(previousPos, bullet.position))
+            {
+                bullet.active = false;
+                std::cout << "[UDP-MISS] Room " << roomId
+                    << " shooter: " << bullet.ownerID
+                    << " reason: wall"
+                    << std::endl;
+                continue;
+            }
+
+            if (bullet.traveled >= BULLET_MAX_DIST)
+            {
+                bullet.active = false;
+                std::cout << "[UDP-MISS] Room " << roomId
+                    << " shooter: " << bullet.ownerID
+                    << " reason: range"
+                    << std::endl;
+                continue;
+            }
+
+            int targetPlayerId = GetOtherPlayerId(bullet.ownerID);
+            if (targetPlayerId != -1 && SegmentHitsPlayer(previousPos, bullet.position, targetPlayerId))
+            {
+                bullet.active = false;
+                hitOwners.push_back(bullet.ownerID);
+            }
+        }
+
+        bullets.erase(
+            std::remove_if(bullets.begin(), bullets.end(),
+                [](const BulletState& bullet) { return !bullet.active; }),
+            bullets.end()
+        );
+    }
+
+    for (int ownerId : hitOwners)
+    {
+        if (finished)
+            return;
+        HandleHit(ownerId);
+    }
 }
 
-bool GameSession::ShotHitsPlayer(int shooterPlayerId, const ShootReplicateData& shot) const
+void GameSession::LoadCollisionMap()
 {
-    int shooterIndex = GetIndex(shooterPlayerId);
-    if (shooterIndex == -1)
+    static const char* mapPaths[] = {
+        "Tilemaps/Tilemap1.txt",
+        "SFML_CLIENT/SFML_CLIENT/Tilemaps/Tilemap1.txt",
+        "../SFML_CLIENT/SFML_CLIENT/Tilemaps/Tilemap1.txt",
+        "../../SFML_CLIENT/SFML_CLIENT/Tilemaps/Tilemap1.txt",
+        "../../../SFML_CLIENT/SFML_CLIENT/Tilemaps/Tilemap1.txt",
+        "../../../../SFML_CLIENT/SFML_CLIENT/Tilemaps/Tilemap1.txt"
+    };
+
+    for (const char* path : mapPaths)
+    {
+        std::ifstream file(path);
+        if (!file.is_open())
+            continue;
+
+        std::vector<std::string> loadedRows;
+        std::string row;
+        while (std::getline(file, row))
+        {
+            if (!row.empty())
+                loadedRows.push_back(row);
+        }
+
+        if (!loadedRows.empty())
+        {
+            mapRows = loadedRows;
+            std::cout << "[UDP-MAP] Collision map loaded from " << path
+                << " rows: " << mapRows.size()
+                << std::endl;
+            return;
+        }
+    }
+
+    mapRows = {
+        "################",
+        "#____________#_#",
+        "#______________#",
+        "#____#_________#",
+        "#_________#____#",
+        "#__#___________#",
+        "#______#_______#",
+        "#__#________#__#",
+        "################"
+    };
+
+    std::cout << "[UDP-MAP] Using embedded fallback collision map." << std::endl;
+}
+
+bool GameSession::IsWallAt(const sf::Vector2f& position) const
+{
+    if (mapRows.empty())
         return false;
 
-    int targetIndex = (shooterIndex == 0) ? 1 : 0;
-    const PlayerState& target = states[targetIndex];
+    if (position.x < 0.f || position.y < 0.f)
+        return true;
 
+    int row = static_cast<int>(std::floor(position.y / TILE_SIZE));
+    int col = static_cast<int>(std::floor(position.x / TILE_SIZE));
+
+    if (row < 0 || row >= static_cast<int>(mapRows.size()))
+        return true;
+    if (col < 0 || col >= static_cast<int>(mapRows[row].size()))
+        return true;
+
+    return mapRows[row][col] == '#';
+}
+
+bool GameSession::SegmentHitsWall(const sf::Vector2f& from, const sf::Vector2f& to) const
+{
+    float dx = to.x - from.x;
+    float dy = to.y - from.y;
+    float longest = std::max(std::abs(dx), std::abs(dy));
+    int steps = std::max(1, static_cast<int>(std::ceil(longest / PROJECTILE_STEP)));
+
+    for (int i = 0; i <= steps; i++)
+    {
+        float t = static_cast<float>(i) / static_cast<float>(steps);
+        sf::Vector2f point(from.x + dx * t, from.y + dy * t);
+        if (IsWallAt(point))
+            return true;
+    }
+
+    return false;
+}
+
+bool GameSession::PointHitsPlayer(const sf::Vector2f& point, int targetPlayerId) const
+{
+    int targetIndex = GetIndex(targetPlayerId);
+    if (targetIndex == -1)
+        return false;
+
+    const PlayerState& target = states[targetIndex];
     if (!target.ready || target.disconnected)
         return false;
 
-    float dir = shot.flipped ? -1.f : 1.f;
-    float dx = target.position.x - shot.position.x;
-    if (dx * dir < 0.f)
-        return false;
+    float dx = std::abs(point.x - target.position.x);
+    float dy = std::abs(point.y - target.position.y);
 
-    if (std::abs(dx) > SHOT_MAX_DIST)
-        return false;
+    return dx <= (PLAYER_HIT_HALF_WIDTH + BULLET_HIT_RADIUS)
+        && dy <= (PLAYER_HIT_HALF_HEIGHT + BULLET_HIT_RADIUS);
+}
 
-    float dy = std::abs(target.position.y - shot.position.y);
-    return dy <= SHOT_HIT_HEIGHT;
+bool GameSession::SegmentHitsPlayer(const sf::Vector2f& from, const sf::Vector2f& to, int targetPlayerId) const
+{
+    float dx = to.x - from.x;
+    float dy = to.y - from.y;
+    float longest = std::max(std::abs(dx), std::abs(dy));
+    int steps = std::max(1, static_cast<int>(std::ceil(longest / PROJECTILE_STEP)));
+
+    for (int i = 0; i <= steps; i++)
+    {
+        float t = static_cast<float>(i) / static_cast<float>(steps);
+        sf::Vector2f point(from.x + dx * t, from.y + dy * t);
+        if (PointHitsPlayer(point, targetPlayerId))
+            return true;
+    }
+
+    return false;
 }
 
 void GameSession::HandleHit(int shooterPlayerId)

@@ -29,6 +29,8 @@ void GameScene::OnEnter()
     localPlayer = new Player();
     localPlayer->isLocal = true;
     remotePlayer = new Player();
+    localPlayer->animRenderer->tint = sf::Color::White;
+    remotePlayer->animRenderer->tint = sf::Color(255, 120, 120);
 
     int myIdx = GetMyMatchIndex();
     if (myIdx == 0)
