@@ -5,6 +5,9 @@
 #include <vector>
 #include "PacketTypes.h"
 
+static const int PACKET_FLAG_URGENT = 1;
+static const int PACKET_FLAG_CRITICAL = 2;
+
 inline sf::Packet& operator<<(sf::Packet& packet, const sf::Vector2f& v)
 {
     return packet << v.x << v.y;
@@ -19,18 +22,17 @@ struct LobbyPlayerInfo
     int playerId       = -1;
     std::string username;
     std::string ip;
-    unsigned short gamePort = 0;
     bool isHost        = false;
 };
 
 inline sf::Packet& operator<<(sf::Packet& packet, const LobbyPlayerInfo& data)
 {
-    packet << data.playerId << data.username << data.ip << data.gamePort << data.isHost;
+    packet << data.playerId << data.username << data.ip << data.isHost;
     return packet;
 }
 inline sf::Packet& operator>>(sf::Packet& packet, LobbyPlayerInfo& data)
 {
-    packet >> data.playerId >> data.username >> data.ip >> data.gamePort >> data.isHost;
+    packet >> data.playerId >> data.username >> data.ip >> data.isHost;
     return packet;
 }
 
@@ -55,6 +57,37 @@ struct UdpHelloData
     std::string roomId;
     int playerId = -1;
 };
+
+struct UdpPacketHeaderData
+{
+    int flags = 0;
+    int packetId = 0;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const UdpPacketHeaderData& data)
+{
+    return packet << data.flags << data.packetId;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, UdpPacketHeaderData& data)
+{
+    return packet >> data.flags >> data.packetId;
+}
+inline bool HasPacketFlag(int flags, int flag)
+{
+    return (flags & flag) != 0;
+}
+
+struct CriticalAckData
+{
+    int packetId = 0;
+};
+inline sf::Packet& operator<<(sf::Packet& packet, const CriticalAckData& data)
+{
+    return packet << data.packetId;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, CriticalAckData& data)
+{
+    return packet >> data.packetId;
+}
 
 sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data);
 sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data);

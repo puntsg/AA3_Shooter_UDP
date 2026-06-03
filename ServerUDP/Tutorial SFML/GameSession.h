@@ -36,6 +36,7 @@ struct PlayerState
     int cheatingStrikes = 0;
     sf::Clock lastPacketClock;
     int lastValidPacketId = 0;
+    std::vector<int> processedCriticalPackets;
     bool disconnected = false;
 };
 
@@ -49,6 +50,15 @@ struct BulletState
     bool active = true;
 };
 
+struct PendingCriticalPacket
+{
+    int packetId = 0;
+    int targetPlayerId = -1;
+    sf::Packet packet;
+    float nextSendTime = 0.f;
+    int attempts = 0;
+};
+
 class GameSession
 {
 public:
@@ -56,7 +66,8 @@ public:
 
     void ProcessMovePacket(int playerId, sf::Packet& packet);
     void ProcessShotPacket(int playerId, sf::Packet& packet);
-    void ProcessTauntPacket(int playerId);
+    void ProcessTauntPacket(int playerId, sf::Packet& packet);
+    void ProcessCriticalAckPacket(int playerId, sf::Packet& packet);
     void ProcessReadyPacket(int playerId);
     bool RegisterPlayerEndpoint(int playerId, const sf::IpAddress& ip, unsigned short port);
     void DisconnectPlayer(int playerId);
@@ -73,16 +84,24 @@ private:
     void BroadcastGameState();
     void SendToPlayer(int playerId, sf::Packet& packet);
     void SendToOther(int playerId, sf::Packet& packet);
+    void SendCriticalToPlayer(int playerId, sf::Packet& packet, int packetId, const char* context);
+    void SendCriticalAck(int playerId, int packetId);
+    void UpdateCriticalPackets();
+    bool StoreProcessedCriticalPacket(int playerId, int packetId);
+    int CreateCriticalPacketId();
 
     void UpdateBullets(float dt);
     std::vector<BulletState> bullets;
     std::mutex bulletsMutex;
+    std::vector<PendingCriticalPacket> pendingCriticalPackets;
+    std::mutex criticalPacketsMutex;
 
     void LoadCollisionMap();
     bool IsWallAt(const sf::Vector2f& position) const;
     bool SegmentHitsWall(const sf::Vector2f& from, const sf::Vector2f& to) const;
     bool PointHitsPlayer(const sf::Vector2f& point, int targetPlayerId) const;
     bool SegmentHitsPlayer(const sf::Vector2f& from, const sf::Vector2f& to, int targetPlayerId) const;
+    bool ClampPositionToMapBottom(sf::Vector2f& position) const;
     void HandleHit(int shooterPlayerId);
     void RespawnPlayer(int playerId);
 
@@ -109,4 +128,6 @@ private:
     bool bothReady;
     sf::Clock broadcastClock;
     sf::Clock sessionClock;
+    sf::Clock criticalClock;
+    int nextCriticalPacketId;
 };

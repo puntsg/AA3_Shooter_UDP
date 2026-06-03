@@ -34,31 +34,20 @@ enum PacketType
 	PLAYER_HIT,
 	PLAYER_TAUNT,
 
-	// Conecta3 antiguo
-	PIECEADDED,
-	NEXT_TURN,
-
 	ENDGAME,
-	RANKINGUPDATE,
 	RANKING_REQUEST,
 	RANKING_RESPONSE,
-
-	//Player
-	PLAYER_MOVES,
-	PLAYER_SHOTS,
-	PLAYER_HURTED,
-	BULLET_MOVES,
 
 	//Desconextion
 	DISCONNECT,
 	PLAYER_DISCONNECTED,
-	PING,
 
 	//Generico
 	ERROR_MESSAGE,
 
 	// UDP
-	UDP_HELLO = 102
+	UDP_HELLO = 102,
+	CRITICAL_ACK = 103
 };
 
 inline sf::Packet& operator <<(sf::Packet& packet, const PacketType& type)

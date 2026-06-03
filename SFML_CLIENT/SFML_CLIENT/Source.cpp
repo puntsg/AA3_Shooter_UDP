@@ -30,8 +30,6 @@ int main()
         //return -1;
     }
 
-    unsigned short gamePort = 56000;
-
     sf::Clock dtClock;
     while (SM.window.isOpen())
     {

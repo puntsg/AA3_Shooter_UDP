@@ -26,6 +26,7 @@ private:
     void ApplyPlayerHit(const PlayerHitData& data);
     void ResolveCollisions(Player* p);
     void ResolvePlayerCollision();
+    void ClampLocalPlayerToMap();
     void HandleGameEnd();
 
     Player*              localPlayer   = nullptr;
@@ -54,6 +55,7 @@ private:
     const float TAUNT_LOCK_TIME = 0.8f;
     const float TAUNT_COOLDOWN = 1.2f;
     const float TAUNT_ECHO_BLOCK_TIME = 1.4f;
+    const float FALL_RESET_OFFSET = 50.f;
     const char* TAUNT_SOUND = "assets/Burla.mp3";
     const int MAX_HEALTH = 5;
     const int MAX_LIFES = 3;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Network.hpp>
+#include <SFML/System/Clock.hpp>
 #include <string>
 #include <vector>
 #include "PacketTypes.h"
@@ -25,9 +26,9 @@ public:
     void DisconnectFromServer();  // Alias de CloseConnection
 
     // --- Protocolo de sala ---
-    void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
-    void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
-    bool SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort);
+    void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname);
+    void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname);
+    bool SendMatchmakingRequest(bool ranked, const std::string& nickname);
     bool SendCancelMatchmakingRequest();
 
     void ReceiveData();
@@ -42,6 +43,8 @@ public:
 
     // Envia paquete UDP al GameServer
     void SendUdp(sf::Packet& packet);
+    void SendCriticalShoot(const ShootReplicateData& data);
+    void SendCriticalTaunt();
 
     // Procesa paquetes UDP pendientes al GS
     void ReceiveUdpData();
@@ -72,12 +75,29 @@ private:
     void HandlePlayerHit(sf::Packet& packet);
     void HandlePlayerTaunt(sf::Packet& packet);
     void HandleEndgame(sf::Packet& packet);
+    void HandleCriticalAck(sf::Packet& packet);
 
+    void SendCriticalAck(int packetId);
+    void UpdateCriticalPackets();
+    bool StoreReceivedCriticalPacket(int packetId);
+    void StorePendingCriticalPacket(int packetId, sf::Packet& packet);
+    int CreateCriticalPacketId();
 
+    struct PendingCriticalPacket
+    {
+        int packetId = 0;
+        sf::Packet packet;
+        float nextSendTime = 0.f;
+        int attempts = 0;
+    };
 
     sf::TcpSocket m_socket;
     sf::UdpSocket m_udpSocket;
     bool m_isConnected;
     bool m_udpSocketReady;
     ClientState m_clientState;
+    std::vector<PendingCriticalPacket> m_pendingCriticalPackets;
+    std::vector<int> m_receivedCriticalPackets;
+    sf::Clock m_criticalClock;
+    int m_nextCriticalPacketId;
 };

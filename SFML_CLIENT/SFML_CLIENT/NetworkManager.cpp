@@ -3,9 +3,14 @@
 #include <iostream>
 #include <optional>
 
+static const float CRITICAL_RESEND_INTERVAL = 0.08f;
+static const int CRITICAL_MAX_ATTEMPTS = 6;
+static const std::size_t CRITICAL_HISTORY_LIMIT = 64;
+
 NetworkManager::NetworkManager()
     : m_isConnected(false)
     , m_udpSocketReady(false)
+    , m_nextCriticalPacketId(0)
 {
 }
 
@@ -80,6 +85,10 @@ void NetworkManager::ClearGameNetworkState()
         m_udpSocket.unbind();
         m_udpSocketReady = false;
     }
+
+    m_pendingCriticalPackets.clear();
+    m_receivedCriticalPackets.clear();
+    m_nextCriticalPacketId = 0;
 
     std::cout << "[CLIENT-UDP] Socket de partida cerrado." << std::endl;
 }
@@ -166,7 +175,7 @@ void NetworkManager::CloseConnection()
     std::cout << "[CLIENT] Conexion cerrada correctamente." << std::endl;
 }
 
-void NetworkManager::SendCreateRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort)
+void NetworkManager::SendCreateRoomRequest(const std::string& roomId, const std::string& nickname)
 {
     if (!m_isConnected)
     {
@@ -179,7 +188,6 @@ void NetworkManager::SendCreateRoomRequest(const std::string& roomId, const std:
     CreateRoomRequestData requestData;
     requestData.roomId = roomId;
     requestData.username = nickname;
-    requestData.gamePort = gamePort;
 
     packet << static_cast<short>(PacketType::CREATE_ROOM_REQUEST);
     packet << requestData;
@@ -194,7 +202,7 @@ void NetworkManager::SendCreateRoomRequest(const std::string& roomId, const std:
     }
 }
 
-void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort)
+void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::string& nickname)
 {
     if (!m_isConnected)
     {
@@ -207,7 +215,6 @@ void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::s
     JoinRoomRequestData requestData;
     requestData.roomId = roomId;
     requestData.username = nickname;
-    requestData.gamePort = gamePort;
 
     packet << static_cast<short>(PacketType::JOIN_ROOM_REQUEST);
     packet << requestData;
@@ -222,7 +229,7 @@ void NetworkManager::SendJoinRoomRequest(const std::string& roomId, const std::s
     }
 }
 
-bool NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname, unsigned short gamePort)
+bool NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nickname)
 {
     if (!m_isConnected)
     {
@@ -236,7 +243,6 @@ bool NetworkManager::SendMatchmakingRequest(bool ranked, const std::string& nick
     CreateRoomRequestData requestData;
     requestData.roomId = queueId;
     requestData.username = nickname;
-    requestData.gamePort = gamePort;
 
     packet << static_cast<short>(PacketType::CREATE_ROOM_REQUEST);
     packet << requestData;
@@ -451,10 +457,42 @@ void NetworkManager::SendUdp(sf::Packet& packet)
         std::cerr << "[CLIENT-UDP] Error enviando paquete UDP." << std::endl;
 }
 
+void NetworkManager::SendCriticalShoot(const ShootReplicateData& data)
+{
+    int packetId = CreateCriticalPacketId();
+
+    UdpPacketHeaderData header;
+    header.flags = PACKET_FLAG_URGENT | PACKET_FLAG_CRITICAL;
+    header.packetId = packetId;
+
+    sf::Packet packet;
+    packet << PacketType::SHOOT << header << data;
+
+    StorePendingCriticalPacket(packetId, packet);
+    SendUdp(packet);
+}
+
+void NetworkManager::SendCriticalTaunt()
+{
+    int packetId = CreateCriticalPacketId();
+
+    UdpPacketHeaderData header;
+    header.flags = PACKET_FLAG_URGENT | PACKET_FLAG_CRITICAL;
+    header.packetId = packetId;
+
+    sf::Packet packet;
+    packet << PacketType::PLAYER_TAUNT << header;
+
+    StorePendingCriticalPacket(packetId, packet);
+    SendUdp(packet);
+}
+
 void NetworkManager::ReceiveUdpData()
 {
     if (!m_udpSocketReady)
         return;
+
+    UpdateCriticalPackets();
 
     sf::Packet packet;
     std::optional<sf::IpAddress> senderIp;
@@ -482,6 +520,9 @@ void NetworkManager::ReceiveUdpData()
         case PacketType::ENDGAME:
             HandleEndgame(packet);
             break;
+        case PacketType::CRITICAL_ACK:
+            HandleCriticalAck(packet);
+            break;
         default:
             break;
         }
@@ -492,8 +533,14 @@ void NetworkManager::ReceiveUdpData()
 
 void NetworkManager::HandleTransform(sf::Packet& packet)
 {
+    UdpPacketHeaderData header;
     TransformData data;
-    packet >> data;
+    packet >> header >> data;
+    if (!static_cast<bool>(packet) || !HasPacketFlag(header.flags, PACKET_FLAG_URGENT))
+        return;
+
+    if (header.packetId > 0)
+        data.packetId = header.packetId;
 
     for (TransformData& t : m_clientState.incomingTransforms)
     {
@@ -508,7 +555,20 @@ void NetworkManager::HandleTransform(sf::Packet& packet)
 
 void NetworkManager::HandleShootReplicate(sf::Packet& packet)
 {
-    packet >> m_clientState.lastShootReplicate;
+    UdpPacketHeaderData header;
+    ShootReplicateData data;
+
+    packet >> header >> data;
+    if (!static_cast<bool>(packet)
+        || header.packetId <= 0
+        || !HasPacketFlag(header.flags, PACKET_FLAG_CRITICAL))
+        return;
+
+    SendCriticalAck(header.packetId);
+    if (!StoreReceivedCriticalPacket(header.packetId))
+        return;
+
+    m_clientState.lastShootReplicate = data;
     m_clientState.hasShootReplicate = true;
 }
 
@@ -520,7 +580,20 @@ void NetworkManager::HandlePlayerHit(sf::Packet& packet)
 
 void NetworkManager::HandlePlayerTaunt(sf::Packet& packet)
 {
-    packet >> m_clientState.tauntPlayerId;
+    UdpPacketHeaderData header;
+    int tauntPlayerId = -1;
+
+    packet >> header >> tauntPlayerId;
+    if (!static_cast<bool>(packet)
+        || header.packetId <= 0
+        || !HasPacketFlag(header.flags, PACKET_FLAG_CRITICAL))
+        return;
+
+    SendCriticalAck(header.packetId);
+    if (!StoreReceivedCriticalPacket(header.packetId))
+        return;
+
+    m_clientState.tauntPlayerId = tauntPlayerId;
     m_clientState.hasTaunt = true;
 }
 
@@ -528,6 +601,98 @@ void NetworkManager::HandleEndgame(sf::Packet& packet)
 {
     packet >> m_clientState.endgameData;
     m_clientState.hasEndgame = true;
+}
+
+void NetworkManager::HandleCriticalAck(sf::Packet& packet)
+{
+    CriticalAckData ackData;
+    packet >> ackData;
+    if (!static_cast<bool>(packet))
+        return;
+
+    for (std::size_t i = 0; i < m_pendingCriticalPackets.size(); )
+    {
+        if (m_pendingCriticalPackets[i].packetId == ackData.packetId)
+            m_pendingCriticalPackets.erase(m_pendingCriticalPackets.begin() + i);
+        else
+            i++;
+    }
+}
+
+void NetworkManager::SendCriticalAck(int packetId)
+{
+    if (packetId <= 0)
+        return;
+
+    CriticalAckData ackData;
+    ackData.packetId = packetId;
+
+    sf::Packet packet;
+    packet << PacketType::CRITICAL_ACK << ackData;
+    SendUdp(packet);
+}
+
+void NetworkManager::UpdateCriticalPackets()
+{
+    float now = m_criticalClock.getElapsedTime().asSeconds();
+
+    for (std::size_t i = 0; i < m_pendingCriticalPackets.size(); )
+    {
+        PendingCriticalPacket& pending = m_pendingCriticalPackets[i];
+
+        if (pending.attempts >= CRITICAL_MAX_ATTEMPTS)
+        {
+            std::cerr << "[CLIENT-UDP] Paquete critico sin ACK: "
+                << pending.packetId
+                << std::endl;
+            m_pendingCriticalPackets.erase(m_pendingCriticalPackets.begin() + i);
+            continue;
+        }
+
+        if (now >= pending.nextSendTime)
+        {
+            SendUdp(pending.packet);
+            pending.attempts++;
+            pending.nextSendTime = now + CRITICAL_RESEND_INTERVAL;
+        }
+
+        i++;
+    }
+}
+
+bool NetworkManager::StoreReceivedCriticalPacket(int packetId)
+{
+    for (int receivedId : m_receivedCriticalPackets)
+    {
+        if (receivedId == packetId)
+            return false;
+    }
+
+    m_receivedCriticalPackets.push_back(packetId);
+    if (m_receivedCriticalPackets.size() > CRITICAL_HISTORY_LIMIT)
+        m_receivedCriticalPackets.erase(m_receivedCriticalPackets.begin());
+
+    return true;
+}
+
+void NetworkManager::StorePendingCriticalPacket(int packetId, sf::Packet& packet)
+{
+    PendingCriticalPacket pending;
+    pending.packetId = packetId;
+    pending.packet = packet;
+    pending.attempts = 1;
+    pending.nextSendTime = m_criticalClock.getElapsedTime().asSeconds() + CRITICAL_RESEND_INTERVAL;
+
+    m_pendingCriticalPackets.push_back(pending);
+}
+
+int NetworkManager::CreateCriticalPacketId()
+{
+    m_nextCriticalPacketId++;
+    if (m_nextCriticalPacketId <= 0)
+        m_nextCriticalPacketId = 1;
+
+    return m_nextCriticalPacketId;
 }
 
 void NetworkManager::HandleCreateRoomResponse(sf::Packet& packet)
@@ -605,7 +770,6 @@ void NetworkManager::HandleRoomStatusUpdate(sf::Packet& packet)
         std::cout << "  - " << player.username
             << " | host: " << player.isHost
             << " | ip: " << player.ip
-            << " | port: " << player.gamePort
             << std::endl;
     }
 }
@@ -639,7 +803,6 @@ void NetworkManager::HandleStartGame(sf::Packet& packet)
         std::cout << "  - " << player.username
             << " | host: " << player.isHost
             << " | ip: " << player.ip
-            << " | port: " << player.gamePort
             << std::endl;
     }
     NM.DisconnectFromServer();

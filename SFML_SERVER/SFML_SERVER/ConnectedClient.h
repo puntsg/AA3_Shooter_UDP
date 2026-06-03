@@ -9,7 +9,6 @@ struct ConnectedClient
     std::string username;
     sf::TcpSocket* socket;
     sf::IpAddress ip;
-    unsigned short gamePort;
     std::string currentRoomId;
 
     ConnectedClient()
@@ -17,7 +16,6 @@ struct ConnectedClient
         , username("")
         , socket(nullptr)
         , ip(sf::IpAddress::Any)
-        , gamePort(0)
         , currentRoomId("")
     {
     }

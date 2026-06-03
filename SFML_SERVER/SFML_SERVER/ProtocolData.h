@@ -81,7 +81,6 @@ struct CreateRoomRequestData
 {
     std::string roomId;
     std::string username;
-    unsigned short gamePort = 0;
 };
 
 struct CreateRoomResponseData
@@ -96,7 +95,6 @@ struct JoinRoomRequestData
 {
     std::string roomId;
     std::string username;
-    unsigned short gamePort = 0;
 };
 
 struct JoinRoomResponseData
@@ -112,7 +110,6 @@ struct LobbyPlayerInfo
     int playerId = -1;
     std::string username;
     std::string ip;
-    unsigned short gamePort = 0;
     bool isHost = false;
 };
 
@@ -170,19 +167,12 @@ struct ErrorMessageData
     std::string message;
 };
 
-struct RankingUpdateData
-{
-    std::string roomId;
-    std::vector<int> placementOrder; // orden de jugadores
-};
-
 // LobbyPlayerInfo
 inline sf::Packet& operator<<(sf::Packet& packet, const LobbyPlayerInfo& data)
 {
     packet << data.playerId
         << data.username
         << data.ip
-        << data.gamePort
         << data.isHost;
     return packet;
 }
@@ -192,7 +182,6 @@ inline sf::Packet& operator>>(sf::Packet& packet, LobbyPlayerInfo& data)
     packet >> data.playerId
         >> data.username
         >> data.ip
-        >> data.gamePort
         >> data.isHost;
     return packet;
 }
@@ -260,13 +249,13 @@ inline sf::Packet& operator>>(sf::Packet& packet, RegisterResponseData& data)
 // CreateRoomRequestData
 inline sf::Packet& operator<<(sf::Packet& packet, const CreateRoomRequestData& data)
 {
-    packet << data.roomId << data.username << data.gamePort;
+    packet << data.roomId << data.username;
     return packet;
 }
 
 inline sf::Packet& operator>>(sf::Packet& packet, CreateRoomRequestData& data)
 {
-    packet >> data.roomId >> data.username >> data.gamePort;
+    packet >> data.roomId >> data.username;
     return packet;
 }
 
@@ -286,13 +275,13 @@ inline sf::Packet& operator>>(sf::Packet& packet, CreateRoomResponseData& data)
 // JoinRoomRequestData
 inline sf::Packet& operator<<(sf::Packet& packet, const JoinRoomRequestData& data)
 {
-    packet << data.roomId << data.username << data.gamePort;
+    packet << data.roomId << data.username;
     return packet;
 }
 
 inline sf::Packet& operator>>(sf::Packet& packet, JoinRoomRequestData& data)
 {
-    packet >> data.roomId >> data.username >> data.gamePort;
+    packet >> data.roomId >> data.username;
     return packet;
 }
 
@@ -376,28 +365,3 @@ inline sf::Packet& operator>>(sf::Packet& packet, MapResponseData& data)
     return packet >> data.version >> data.mapContent;
 }
 
-// RankingUpdateData
-inline sf::Packet& operator<<(sf::Packet& packet, const RankingUpdateData& data)
-{
-    packet << data.roomId;
-    packet << static_cast<int>(data.placementOrder.size());
-    for (int playerId : data.placementOrder)
-    {
-        packet << playerId;
-    }
-    return packet;
-}
-
-inline sf::Packet& operator>>(sf::Packet& packet, RankingUpdateData& data)
-{
-    int size = 0;
-    packet >> data.roomId >> size;
-    data.placementOrder.clear();
-    for (int i = 0; i < size; ++i)
-    {
-        int playerId;
-        packet >> playerId;
-        data.placementOrder.push_back(playerId);
-    }
-    return packet;
-}

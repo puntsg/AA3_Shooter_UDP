@@ -166,9 +166,7 @@ void GameScene::Update(float dt)
         bullets.push_back(localPlayer->pendingBullet);
         localPlayer->pendingBullet = nullptr;
 
-        sf::Packet shootPacket;
-        shootPacket << PacketType::SHOOT << shotData;
-        NM.SendUdp(shootPacket);
+        NM.SendCriticalShoot(shotData);
     }
 
     // Update & cull bullets
@@ -214,6 +212,7 @@ void GameScene::Update(float dt)
 
     ResolveCollisions(localPlayer);
     ResolvePlayerCollision();
+    ClampLocalPlayerToMap();
     m_sendTimer += dt;
     if (m_sendTimer >= SEND_INTERVAL)
     {
@@ -306,6 +305,25 @@ void GameScene::ResolvePlayerCollision()
     la->sprite->setPosition(localPlayer->GetTransform()->position);
 }
 
+void GameScene::ClampLocalPlayerToMap()
+{
+    if (!localPlayer || !tileMap || tileMap->tileGrid.empty())
+        return;
+
+    float mapBottomY = static_cast<float>(tileMap->tileGrid.size())
+        * static_cast<float>(tileMap->tileSize.y);
+
+    if (localPlayer->GetTransform()->position.y < mapBottomY)
+        return;
+
+    localPlayer->GetTransform()->position.y = mapBottomY - FALL_RESET_OFFSET;
+    localPlayer->velocity.y = 0.f;
+    localPlayer->grounded = true;
+
+    if (localPlayer->animRenderer && localPlayer->animRenderer->sprite.has_value())
+        localPlayer->animRenderer->sprite->setPosition(localPlayer->GetTransform()->position);
+}
+
 void GameScene::SendTransform()
 {
     TransformData data;
@@ -319,8 +337,13 @@ void GameScene::SendTransform()
     data.spriteStartY = localPlayer->animRenderer->startOffset.y;
     data.spriteEndX = localPlayer->animRenderer->endOffset.x;
     data.spriteEndY = localPlayer->animRenderer->endOffset.y;
+
+    UdpPacketHeaderData header;
+    header.flags = PACKET_FLAG_URGENT;
+    header.packetId = data.packetId;
+
     sf::Packet packet;
-    packet << PacketType::TRANSFORM << data;
+    packet << PacketType::TRANSFORM << header << data;
     NM.SendUdp(packet);
 }
 
@@ -332,9 +355,7 @@ void GameScene::SendTaunt()
     m_tauntCooldown = TAUNT_COOLDOWN;
     PlayTaunt(NM.GetClientState().playerId);
 
-    sf::Packet packet;
-    packet << PacketType::PLAYER_TAUNT;
-    NM.SendUdp(packet);
+    NM.SendCriticalTaunt();
 }
 
 void GameScene::PlayTaunt(int taunterId)

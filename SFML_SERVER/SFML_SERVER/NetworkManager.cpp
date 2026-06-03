@@ -10,7 +10,7 @@
 
 static const char* MAPS_DIR = "maps/";
 
-static const char* LOCALHOST_IP= "10.40.2.212"; //10.40.2.212
+static const char* LOCALHOST_IP= "127.0.0.1"; //10.40.2.212
 
 // IP local porque SFML_SERVER y ServerUDP corren en el mismo PC servidor.
 static const char* GAME_SERVER_LINK_IP       = LOCALHOST_IP;
@@ -200,9 +200,6 @@ void NetworkManager::ProcessPacket(ConnectedClient& client, sf::Packet& packet)
     case PacketType::DISCONNECT:
         HandleDisconnectRequest(client);
         break;
-    case PacketType::PLAYER_MOVES:
-        std::cout << "player send movement packet" << std::endl;
-        break;
     default:
         std::cout << "[SERVER] Paquete no gestionado recibido de playerId "
             << client.playerId
@@ -319,7 +316,6 @@ void NetworkManager::HandleCreateRoomRequest(ConnectedClient& client, sf::Packet
     }
 
     client.username = requestData.username;
-    client.gamePort = requestData.gamePort;
 
     bool success = m_roomManager.CreateRoom(requestData.roomId, client.playerId);
 
@@ -342,7 +338,6 @@ void NetworkManager::HandleCreateRoomRequest(ConnectedClient& client, sf::Packet
 void NetworkManager::HandleMatchmakingRequest(ConnectedClient& client, const CreateRoomRequestData& requestData, bool ranked)
 {
     client.username = requestData.username;
-    client.gamePort = requestData.gamePort;
 
     std::vector<int>& queue = ranked ? m_rankedQueue : m_normalQueue;
     const std::string queueName = ranked ? "ranked" : "normal";
@@ -368,7 +363,6 @@ void NetworkManager::HandleJoinRoomRequest(ConnectedClient& client, sf::Packet& 
     packet >> requestData;
 
     client.username = requestData.username;
-    client.gamePort = requestData.gamePort;
 
     Room* room = m_roomManager.GetRoom(requestData.roomId);
 
@@ -658,7 +652,6 @@ void NetworkManager::BroadcastRoomStatus(const std::string& roomId)
         playerInfo.playerId = roomClient->playerId;
         playerInfo.username = roomClient->username;
         playerInfo.ip = roomClient->ip.toString();
-        playerInfo.gamePort = roomClient->gamePort;
         playerInfo.isHost = (playerId == room->playerIds.front());
 
         roomData.players.push_back(playerInfo);
@@ -713,7 +706,6 @@ void NetworkManager::TryStartGame(const std::string& roomId)
         playerInfo.playerId = roomClient->playerId;
         playerInfo.username = roomClient->username;
         playerInfo.ip = roomClient->ip.toString();
-        playerInfo.gamePort = roomClient->gamePort;
         playerInfo.isHost = (playerId == room->playerIds.front());
 
         startData.players.push_back(playerInfo);
@@ -909,64 +901,7 @@ void NetworkManager::PrintConnectedClients() const
             << " | username: " << client.username
             << " | roomId: " << client.currentRoomId
             << " | ip: " << client.ip.toString()
-            << " | gamePort: " << client.gamePort
             << "\n";
-    }
-}
-
-void NetworkManager::HandleRankingUpdate(ConnectedClient& client, sf::Packet& packet)
-{
-    RankingUpdateData updateData;
-    packet >> updateData;
-
-    std::cout << "[SERVER] Recibida actualización de ranking de sala " << updateData.roomId 
-              << " por jugador " << client.playerId << std::endl;
-
-    pendingRankingUpdates[updateData.roomId].push_back(updateData);
-    ProcessRankingValidation(updateData.roomId);
-}
-
-void NetworkManager::ProcessRankingValidation(const std::string& roomId)
-{
-    std::vector<RankingUpdateData>& updates = pendingRankingUpdates[roomId];
-    if (updates.size() < 2) return; // 2 Updates iguales para validar
-
-    // Verificación por pares
-    bool same = true;
-    const std::vector<int>& first = updates[0].placementOrder;
-    for (size_t i = 1; i < updates.size(); ++i)
-    {
-        if (updates[i].placementOrder != first)
-        {
-            same = false;
-            break;
-        }
-    }
-
-    if (same)
-    {
-        std::cout << "[SERVER] Ranking validado para sala " << roomId << ". Actualizando BD..." << std::endl;
-        
-        for (size_t i = 0; i < first.size(); ++i)
-        {
-            int playerId = first[i];
-            int pointsDiff = 0;
-            if (i == 0) pointsDiff = 20;       // Ganador
-            else if (i == 1) pointsDiff = -5;  // 2do lugar
-            else pointsDiff = -10;             // 3er y 4to lugar
-
-            if (pointsDiff != 0) {
-                DC.UpdatePlayerScore(playerId, pointsDiff);
-            }
-        }
-
-        
-        pendingRankingUpdates.erase(roomId);
-    }
-    else if (updates.size() >= 4) 
-    {
-        std::cout << "[SERVER] Discrepancia insalvable en ranking de sala " << roomId << ". Anulando." << std::endl;
-        pendingRankingUpdates.erase(roomId);
     }
 }
 

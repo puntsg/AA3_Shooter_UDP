@@ -12,7 +12,6 @@ struct ClientState
     std::string savedPassword = "";
     std::string authMessage = "";
     bool authMessageIsError = false;
-    unsigned short myGamePort = 0;
 
     // Estado de la sala
     std::string currentRoomId = "";
@@ -25,10 +24,6 @@ struct ClientState
     bool hasGameStarted = false;
     std::string gameServerIp = "";
     unsigned short gameServerUdpPort = 0;
-
-    // Ranking pendiente al terminar partida P2P
-    bool hasPendingResult = false;
-    GameResultData pendingGameResult;
 
     // Jugadores actuales de la sala
     std::vector<LobbyPlayerInfo> roomPlayers;
