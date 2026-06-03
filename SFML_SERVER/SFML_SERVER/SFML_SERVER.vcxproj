@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -114,6 +114,10 @@
       <AdditionalLibraryDirectories>$(SolutionDir)\Dependencies\lib;$(SolutionDir)Dependencies\mysqlConnector\lib64\vs14;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>sfml-graphics-s.lib;sfml-window-s.lib;sfml-audio-s.lib;sfml-network-s.lib;sfml-system-s.lib;freetype.lib;ogg.lib;vorbis.lib;vorbisenc.lib;vorbisfile.lib;FLAC.lib;opengl32.lib;winmm.lib;gdi32.lib;user32.lib;ws2_32.lib;mysqlcppconn-static.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /Y "$(SolutionDir)SFML_SERVER\libcrypto-1_1-x64.dll" "$(OutDir)"
+copy /Y "$(SolutionDir)SFML_SERVER\libssl-1_1-x64.dll" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -134,6 +138,10 @@
       <AdditionalLibraryDirectories>$(SolutionDir)\Dependencies\lib;$(SolutionDir)Dependencies\mysqlConnector\lib64\vs14;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>sfml-graphics-s.lib;sfml-window-s.lib;sfml-audio-s.lib;sfml-network-s.lib;sfml-system-s.lib;freetype.lib;ogg.lib;vorbis.lib;vorbisenc.lib;vorbisfile.lib;FLAC.lib;opengl32.lib;winmm.lib;gdi32.lib;user32.lib;ws2_32.lib;mysqlcppconn-static.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /Y "$(SolutionDir)SFML_SERVER\libcrypto-1_1-x64.dll" "$(OutDir)"
+copy /Y "$(SolutionDir)SFML_SERVER\libssl-1_1-x64.dll" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="DatabaseConnector.cpp" />

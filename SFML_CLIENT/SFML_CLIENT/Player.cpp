@@ -41,7 +41,10 @@ void Player::Update(float dt)
 	if (!isLocal)
 		return;
 
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) {
+	if (inputLocked) {
+		velocity.x = 0;
+	}
+	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) {
 		velocity.x = -GameConstants::Player::SPEED;
 		animRenderer->flipped = true;
 	}
@@ -52,7 +55,7 @@ void Player::Update(float dt)
 	else
 		velocity.x = 0;
 
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) && grounded) {
+	if (!inputLocked && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W) && grounded) {
 		grounded = false;
 		velocity.y = -GameConstants::Player::JUMP_FORCE;
 	}
@@ -65,9 +68,10 @@ void Player::Update(float dt)
 	);
 
 	fireCooldown -= dt;
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space) && fireCooldown <= 0.f) {
+	if (!inputLocked && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space) && fireCooldown <= 0.f) {
 		sf::Vector2f dir = animRenderer->flipped ? sf::Vector2f(-1.f, 0.f) : sf::Vector2f(1.f, 0.f);
-		pendingBullet = new Bullet(GetTransform()->position, dir);
+		sf::Vector2f bulletPos = GetTransform()->position + dir * 16.f;
+		pendingBullet = new Bullet(bulletPos, dir);
 		fireCooldown = fireRate;
 	}
 

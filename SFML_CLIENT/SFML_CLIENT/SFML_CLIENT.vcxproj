@@ -192,9 +192,12 @@
     <Text Include="maps\map_v1.txt" />
     <Text Include="maps\map_version.txt" />
   </ItemGroup>
+  <ItemGroup>
+    <Media Include="assets\Burla.mp3" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="CopyGameAssets" AfterTargets="Build">
-    <Exec Command="xcopy /E /Y /I &quot;$(ProjectDir)Sprites&quot; &quot;$(OutDir)Sprites&quot;&#xD;&#xA;xcopy /E /Y /I &quot;$(ProjectDir)Tilemaps&quot; &quot;$(OutDir)Tilemaps&quot;&#xD;&#xA;xcopy /E /Y /I &quot;$(ProjectDir)maps&quot; &quot;$(OutDir)maps&quot;" />
+    <Exec Command="xcopy /E /Y /I &quot;$(ProjectDir)Sprites&quot; &quot;$(OutDir)Sprites&quot;&#xD;&#xA;xcopy /E /Y /I &quot;$(ProjectDir)Tilemaps&quot; &quot;$(OutDir)Tilemaps&quot;&#xD;&#xA;xcopy /E /Y /I &quot;$(ProjectDir)maps&quot; &quot;$(OutDir)maps&quot;&#xD;&#xA;xcopy /E /Y /I &quot;$(ProjectDir)assets&quot; &quot;$(OutDir)assets&quot;" />
   </Target>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

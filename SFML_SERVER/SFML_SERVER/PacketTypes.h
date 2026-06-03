@@ -57,7 +57,7 @@ enum PacketType
 	//Generico
 	ERROR_MESSAGE,
 
-	//Server TCP to Game Server
+	//Bootstrap to Game Server
 	SESSION_START_REQUEST = 100,
 	SESSION_START_RESPONSE = 101,
 

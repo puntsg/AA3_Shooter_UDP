@@ -18,6 +18,8 @@
 #define PREDICT_TIMEOUT 0.2f
 #define DISCONNECT_TIMEOUT 3.f
 #define HELLO_TIMEOUT 8.f
+#define BULLET_SPEED 400.f;
+#define BULLET_MAX_DIST 1200.f;
 
 struct PlayerState
 {
@@ -33,6 +35,15 @@ struct PlayerState
     sf::Clock lastPacketClock;
     int lastValidPacketId = 0;
     bool disconnected = false;
+};
+
+struct BulletState
+{
+    sf::Vector2f position;
+    sf::Vector2f velocity;
+    bool flipped = false;
+    int ownerID = 0;
+    bool active = true;
 };
 
 class GameSession
@@ -60,6 +71,11 @@ private:
     void SendToPlayer(int playerId, sf::Packet& packet);
     void SendToOther(int playerId, sf::Packet& packet);
 
+    void UpdateBullets(float dt);
+    std::vector<BulletState> bullets;
+    std::mutex bulletsMutex;
+
+    bool ShotHitsPlayer(int shooterPlayerId, const ShootReplicateData& shot) const;
     void HandleHit(int shooterPlayerId);
     void RespawnPlayer(int playerId);
 
