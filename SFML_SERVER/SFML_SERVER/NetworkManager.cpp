@@ -8,9 +8,17 @@
 #include <SFML/System.hpp>
 
 static constexpr const char* MAPS_DIR = "maps/";
-static constexpr const char* GAME_SERVER_PUBLIC_IP = "127.0.0.1";
-static constexpr const char* GAME_SERVER_LINK_IP = "127.0.0.1";
-static constexpr unsigned short GAME_SERVER_UDP_PORT = 55002;
+
+static constexpr bool USE_LAN = false;
+
+static constexpr const char* GAME_SERVER_LAN_IP        = "192.168.1.45";
+static constexpr const char* GAME_SERVER_PUBLIC_IP_WAN = "79.152.44.136";  
+static constexpr const char* GAME_SERVER_LINK_IP       = "127.0.0.1";      
+static constexpr unsigned short GAME_SERVER_UDP_PORT   = 55002;
+
+static constexpr const char* GAME_SERVER_PUBLIC_IP = USE_LAN
+    ? GAME_SERVER_LAN_IP
+    : GAME_SERVER_PUBLIC_IP_WAN;
 
 // Busca txt devuelve nombre
 static std::string GetCurrentMapFilename()
