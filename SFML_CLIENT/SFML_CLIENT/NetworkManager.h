@@ -49,7 +49,6 @@ public:
     // Procesa paquetes UDP pendientes al GS
     void ReceiveUdpData();
 
-    void SendToServer(sf::Packet& packet);
     bool SendLoginRequest(const std::string& username, const std::string& password);
     bool SendRegisterRequest(const std::string& username, const std::string& password);
     bool SendRankingRequest(const std::string& username);

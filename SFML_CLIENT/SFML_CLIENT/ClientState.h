@@ -44,15 +44,7 @@ struct ClientState
     bool             hasEndgame = false;
     EndgameData      endgameData;
 
-    void ResetRoomState();
-
-    void ResetAuthState();
-
     void ResetRankingState();
 
-    void ResetAll();
-
     inline bool IsLoggedIn() const {return playerId != -1 && !nickname.empty();}
-
-    inline bool IsInRoom() const { return !currentRoomId.empty();}
 };

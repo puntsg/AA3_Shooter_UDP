@@ -63,7 +63,6 @@ private:
     void RemoveClientFromMatchmakingQueues(int playerId);
 
     ConnectedClient* GetClientById(int playerId);
-    ConnectedClient* GetClientBySocket(sf::TcpSocket* socket);
 
     void RemoveDisconnectedClient(std::size_t index);
 

@@ -347,12 +347,6 @@ void NetworkManager::ProcessPacket(sf::Packet& packet)
     }
 }
 
-void NetworkManager::SendToServer(sf::Packet& packet)
-{
-    if (m_socket.send(packet) != sf::Socket::Status::Done)
-        std::cerr << "[CLIENT] Error enviando paquete al servidor." << std::endl;
-}
-
 bool NetworkManager::SendLoginRequest(const std::string& username, const std::string& password)
 {
     if (!m_isConnected)

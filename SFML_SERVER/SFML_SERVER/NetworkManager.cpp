@@ -838,19 +838,6 @@ ConnectedClient* NetworkManager::GetClientById(int playerId)
     return nullptr;
 }
 
-ConnectedClient* NetworkManager::GetClientBySocket(sf::TcpSocket* socket)
-{
-    for (ConnectedClient& client : m_clients)
-    {
-        if (client.socket == socket)
-        {
-            return &client;
-        }
-    }
-
-    return nullptr;
-}
-
 void NetworkManager::RemoveDisconnectedClient(std::size_t index)
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);

@@ -7,7 +7,7 @@ namespace Config
     {
         const int  WIDTH = 800;
         const int  HEIGHT = 600;
-        inline const char* NAME = "Conecta3 Cliente";
+        inline const char* NAME = "shotgame Cliente";
         const int  FPS = 60;
     }
 
@@ -32,6 +32,22 @@ namespace Config
     {
         inline const char* FONT_PATH = "assets/arial.ttf";
         inline const char* FONT_PATH_FALLBACK = "C:/Windows/Fonts/arial.ttf";
+    }
+
+    // Parametros del shooter (partida)
+    namespace Gameplay
+    {
+        // Spawns. OJO: deben coincidir con GameSession.h del ServerUDP.
+        const float P1_SPAWN_X = 96.f,  P1_SPAWN_Y = 256.f;
+        const float P2_SPAWN_X = 576.f, P2_SPAWN_Y = 256.f;
+
+        // Sprite / animacion (hoja newDuck.png)
+        const int   FRAME_W = 49;
+        const int   FRAME_H = 65;
+        const float SPRITE_SCALE = 0.3f;
+
+        // Bala
+        const float BULLET_MUZZLE_OFFSET = 16.f; // px por delante del jugador al disparar
     }
 
     namespace Game

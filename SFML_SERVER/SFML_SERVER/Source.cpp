@@ -9,7 +9,6 @@ int main()
     NetworkManager networkManager;
    
     DC.ConnectDatabase();
-    //DC.GetAllPlayers();
     if (!networkManager.Start(SERVER_PORT))
     {
         return -1;

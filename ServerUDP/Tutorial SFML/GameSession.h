@@ -10,11 +10,11 @@
 static const int MAX_HEALTH = 5;
 static const int MAX_LIFES = 3;
 static const int MAX_STRIKES = 3;
-static const float P1_START_X = 96.f;
-static const float P2_START_X = 576.f;
-static const float START_Y = 464.f;
-static const float RESPAWN_X = 336.f;
-static const float RESPAWN_Y = 336.f;
+static const float P1_START_X = 96.f;    // = spawn del cliente (Config::Gameplay::P1_SPAWN)
+static const float P2_START_X = 576.f;   // = spawn del cliente (Config::Gameplay::P2_SPAWN)
+static const float START_Y = 256.f;
+static const float RESPAWN_X = 336.f;     // centro entre ambos spawns
+static const float RESPAWN_Y = 256.f;
 static const float CHEAT_THRESHOLD = 220.f;
 static const float PREDICT_TIMEOUT = 0.2f;
 static const float DISCONNECT_TIMEOUT = 3.f;
@@ -68,21 +68,18 @@ public:
     void ProcessShotPacket(int playerId, sf::Packet& packet);
     void ProcessTauntPacket(int playerId, sf::Packet& packet);
     void ProcessCriticalAckPacket(int playerId, sf::Packet& packet);
-    void ProcessReadyPacket(int playerId);
     bool RegisterPlayerEndpoint(int playerId, const sf::IpAddress& ip, unsigned short port);
     void DisconnectPlayer(int playerId);
 
     void Update(float dt);
 
     bool IsFinished() const;
-    std::string GetRoomId() const;
 
     bool BelongsToSession(const sf::IpAddress& ip, unsigned short port) const;
     int GetPlayerIdByAddress(const sf::IpAddress& ip, unsigned short port) const;
 
 private:
     void BroadcastGameState();
-    void SendToPlayer(int playerId, sf::Packet& packet);
     void SendToOther(int playerId, sf::Packet& packet);
     void SendCriticalToPlayer(int playerId, sf::Packet& packet, int packetId, const char* context);
     void SendCriticalAck(int playerId, int packetId);

@@ -277,18 +277,6 @@ void GameSession::ProcessCriticalAckPacket(int playerId, sf::Packet& packet)
     }
 }
 
-void GameSession::ProcessReadyPacket(int playerId)
-{
-    PlayerState& state = GetState(playerId);
-    state.ready = true;
-
-    if (states[0].ready && states[1].ready)
-    {
-        bothReady = true;
-        std::cout << "Both ready in " << roomId << std::endl;
-    }
-}
-
 bool GameSession::RegisterPlayerEndpoint(int playerId, const sf::IpAddress& ip, unsigned short port)
 {
     int index = -1;
@@ -368,11 +356,6 @@ bool GameSession::IsFinished() const
     return finished;
 }
 
-std::string GameSession::GetRoomId() const
-{
-    return roomId;
-}
-
 bool GameSession::BelongsToSession(const sf::IpAddress& ip, unsigned short port) const
 {
     return (states[0].ready && states[0].ip == ip && states[0].port == port) ||
@@ -417,16 +400,6 @@ void GameSession::BroadcastGameState()
         if (states[1].ready && !states[1].disconnected)
             SendUdpPacket(socket, packet, states[1].ip, states[1].port, roomId, "TRANSFORM", playerIds[1]);
     }
-}
-
-void GameSession::SendToPlayer(int playerId, sf::Packet& packet)
-{
-    int idx = GetIndex(playerId);
-    if (idx == -1 || !states[idx].ready || states[idx].disconnected)
-        return;
-
-    std::lock_guard<std::mutex> lock(socketMutex);
-    SendUdpPacket(socket, packet, states[idx].ip, states[idx].port, roomId, "direct packet", playerId);
 }
 
 void GameSession::SendToOther(int playerId, sf::Packet& packet)

@@ -6,8 +6,8 @@
 #include <cstddef>
 #include <iostream>
 
-static const sf::Vector2f P1_START_POS(96.f, 256.f);
-static const sf::Vector2f P2_START_POS(576.f, 256.f);
+static const sf::Vector2f P1_START_POS(Config::Gameplay::P1_SPAWN_X, Config::Gameplay::P1_SPAWN_Y);
+static const sf::Vector2f P2_START_POS(Config::Gameplay::P2_SPAWN_X, Config::Gameplay::P2_SPAWN_Y);
 
 static int GetMyMatchIndex()
 {
