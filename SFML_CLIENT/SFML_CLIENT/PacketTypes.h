@@ -3,21 +3,22 @@
 enum PacketType
 {
 	NONE = 0,
-	//Conexion inicial
-	HANDSHAKE,
+
+	//Conexion inicial / launcher
+	CHECK_MAP,
+	MAP_STATUS,
+	MAP_REQUEST,
+	MAP_RESPONSE,
 
 	//Login/registro      
-	LOGIN,
 	LOGIN_REQUEST,
 	LOGIN_RESPONSE,
 
-	REGISTER,
 	REGISTER_REQUEST,
 	REGISTER_RESPONSE,
 
 
 	//Lobby
-	LOBBYCREATION,
 	CREATE_ROOM_REQUEST,
 	CREATE_ROOM_RESPONSE,
 
@@ -27,10 +28,13 @@ enum PacketType
 	//Juego
 	ROOM_STATUS_UPDATE,
 	START_GAME,
-	PIECEADDED,
-	NEXT_TURN,
+	TRANSFORM,
+	SHOOT,
+	SHOOT_REPLICATE,
+	PLAYER_HIT,
+	PLAYER_TAUNT,
+
 	ENDGAME,
-	RANKINGUPDATE,
 	RANKING_REQUEST,
 	RANKING_RESPONSE,
 
@@ -39,10 +43,14 @@ enum PacketType
 	PLAYER_DISCONNECTED,
 
 	//Generico
-	ERROR_MESSAGE
+	ERROR_MESSAGE,
+
+	// UDP
+	UDP_HELLO = 102,
+	CRITICAL_ACK = 103
 };
 
-inline sf::Packet& operator <<(sf::Packet& packet, PacketType& type)
+inline sf::Packet& operator <<(sf::Packet& packet, const PacketType& type)
 {
 	return packet << static_cast<short>(type);
 }

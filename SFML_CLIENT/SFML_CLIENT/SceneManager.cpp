@@ -9,14 +9,6 @@ bool SceneManager::AddScene(std::string name, Scene* scene) {
 	return false;
 }
 
-Scene* SceneManager::GetScene(std::string name) {
-
-	if (scenes.find(name) != scenes.end()) {
-		return scenes[name];
-	}
-	return nullptr;
-}
-
 bool SceneManager::InitFirstScene(std::string name) {
 
 	if (scenes.find(name) != scenes.end()) {

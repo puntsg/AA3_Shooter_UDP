@@ -11,8 +11,7 @@
 #include "SHA256.h"
 
 
-#define LISTENER_PORT 55000
-#define SERVER "127.0.0.1::3306"
+#define SERVER "tcp://127.0.0.1:3306"
 #define USERNAME "root"
 #define PASSWORD ""
 #define DATABASE "videogame"
@@ -41,11 +40,10 @@ public:
 	void DisconnectDatabase();
 
 	//Get database data funcs
-	void GetAllPlayers();
 	bool LoginPlayer(LoginRequestData lrd);
-	void AddPlayer(RegisterRequestData rrd);
+	bool AddPlayer(RegisterRequestData rrd);
 	void UpdateScore(Result r);
 	void UpdatePlayerScore(int playerId, int scoreDiff);
-	std::vector<RankingData> GetRanking(std::string playerName);
+	std::vector<RankingData> GetRanking(std::string playerName, bool& success);
 };
 

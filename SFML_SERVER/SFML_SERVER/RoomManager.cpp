@@ -147,19 +147,6 @@ bool RoomManager::RoomExists(const std::string& roomId) const
     return false;
 }
 
-bool RoomManager::IsRoomFull(const std::string& roomId) const
-{
-    for (const Room& room : m_rooms)
-    {
-        if (room.roomId == roomId)
-        {
-            return static_cast<int>(room.playerIds.size()) >= room.maxPlayers;
-        }
-    }
-
-    return false;
-}
-
 void RoomManager::PrintRooms() const
 {
     std::cout << "\n[SERVER][RoomManager] Estado actual de salas:\n";

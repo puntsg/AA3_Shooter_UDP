@@ -1,9 +1,9 @@
 #pragma once
 
 #include <SFML/Network.hpp>
+#include <SFML/System/Clock.hpp>
 #include <string>
 #include <vector>
-#include <memory>
 #include "PacketTypes.h"
 #include "ProtocolData.h"
 #include "ClientState.h"
@@ -19,15 +19,17 @@ public:
         return nm;
     }
 
-    // --- Conexion con el servidor bootstrap ---
+    // --- Conexion con el servidor bootstrap ---   
     bool Connect(const sf::IpAddress& serverIp, unsigned short serverPort);
     bool ConnectToServer();       // Usa SERVER_IP y SERVER_PORT por defecto
     void CloseConnection();
     void DisconnectFromServer();  // Alias de CloseConnection
 
     // --- Protocolo de sala ---
-    void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
-    void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname, unsigned short gamePort);
+    void SendCreateRoomRequest(const std::string& roomId, const std::string& nickname);
+    void SendJoinRoomRequest(const std::string& roomId, const std::string& nickname);
+    bool SendMatchmakingRequest(bool ranked, const std::string& nickname);
+    bool SendCancelMatchmakingRequest();
 
     void ReceiveData();
     void NetworkFetch();          // Alias de ReceiveData
@@ -36,19 +38,20 @@ public:
     const ClientState& GetClientState() const;
     ClientState& GetClientState();
 
-    // --- Conexiones P2P (juego) ---
-    bool StartP2PListener(unsigned short port);
-    void AcceptPeerConnections();
-    void AddConnection(const std::string& ip, unsigned short port);
-    void SendToAllConnections(sf::Packet& packet);
-    const std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections() const;
-    std::vector<std::unique_ptr<sf::TcpSocket>>& GetConnections();
-    void ClearConnections();
-    void SendToServer(sf::Packet& packet);
-    void SendLoginRequest(const std::string& username, const std::string& password);
-    void SendRegisterRequest(const std::string& username, const std::string& password);
-    void SendRankingRequest(const std::string& username);
-    void NotifyPlayerWin(const std::string& username);
+    void ClearGameNetworkState();
+    bool SendUdpHelloReady();
+
+    // Envia paquete UDP al GameServer
+    void SendUdp(sf::Packet& packet);
+    void SendCriticalShoot(const ShootReplicateData& data);
+    void SendCriticalTaunt();
+
+    // Procesa paquetes UDP pendientes al GS
+    void ReceiveUdpData();
+
+    bool SendLoginRequest(const std::string& username, const std::string& password);
+    bool SendRegisterRequest(const std::string& username, const std::string& password);
+    bool SendRankingRequest(const std::string& username);
 
 private:
     NetworkManager();
@@ -65,15 +68,35 @@ private:
     void HandleRegisterResponse(sf::Packet& packet);
     void HandleRankingResponse(sf::Packet& packet);
 
+    // Handlers UDP
+    void HandleTransform(sf::Packet& packet);
+    void HandleShootReplicate(sf::Packet& packet);
+    void HandlePlayerHit(sf::Packet& packet);
+    void HandlePlayerTaunt(sf::Packet& packet);
+    void HandleEndgame(sf::Packet& packet);
+    void HandleCriticalAck(sf::Packet& packet);
 
+    void SendCriticalAck(int packetId);
+    void UpdateCriticalPackets();
+    bool StoreReceivedCriticalPacket(int packetId);
+    void StorePendingCriticalPacket(int packetId, sf::Packet& packet);
+    int CreateCriticalPacketId();
+
+    struct PendingCriticalPacket
+    {
+        int packetId = 0;
+        sf::Packet packet;
+        float nextSendTime = 0.f;
+        int attempts = 0;
+    };
 
     sf::TcpSocket m_socket;
+    sf::UdpSocket m_udpSocket;
     bool m_isConnected;
+    bool m_udpSocketReady;
     ClientState m_clientState;
-    sf::TcpListener* listener;
-
-    std::vector<std::unique_ptr<sf::TcpSocket>> m_gameConnections;
-
-    static constexpr unsigned short SERVER_PORT = 55000;
-    const sf::IpAddress SERVER_IP = sf::IpAddress(127, 0, 0, 1);
+    std::vector<PendingCriticalPacket> m_pendingCriticalPackets;
+    std::vector<int> m_receivedCriticalPackets;
+    sf::Clock m_criticalClock;
+    int m_nextCriticalPacketId;
 };

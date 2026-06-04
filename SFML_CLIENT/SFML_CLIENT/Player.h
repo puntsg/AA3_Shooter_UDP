@@ -1,10 +1,11 @@
 #pragma once
 #include <string>
-#include <iostream>
 #include <SFML/Graphics.hpp>
-#include "SceneManager.h"
+#include "Entity.h"
+#include "Bullet.h"
+#include "AnimatedRenderer.h"
 
-class Player
+class Player :public Entity
 {
 public:
     int id = 0; 
@@ -13,9 +14,19 @@ public:
     sf::Color color = sf::Color::White;
     bool isSpectator = false;
     bool isLocal = false;
+    bool inputLocked = false;
 
-    Player() = default;
-    
-    Player(int _id, std::string _name, int _score, sf::Color _color, bool _isLocal)
-        : id(_id), nickName(_name), scoreRanking(_score), color(_color), isLocal(_isLocal) {}
+    Player();
+    Player(int _id, std::string _name, int _score, sf::Color _color, bool _isLocal);
+
+    void Update(float dt) override;
+
+    AnimatedRenderer* animRenderer = nullptr;
+
+    bool grounded = false;
+    sf::Vector2f velocity;
+    Bullet* pendingBullet = nullptr;
+    float fireRate = 0.3f;
+private:
+    float fireCooldown = 0.f;
 };

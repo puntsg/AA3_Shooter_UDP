@@ -19,6 +19,8 @@ struct RankingRequestData
 
 struct RankingResponseData
 {
+    bool success = false;
+    std::string message;
     std::vector<RankingData> entries;
 };
 
@@ -79,7 +81,6 @@ struct CreateRoomRequestData
 {
     std::string roomId;
     std::string username;
-    unsigned short gamePort = 0;
 };
 
 struct CreateRoomResponseData
@@ -94,7 +95,6 @@ struct JoinRoomRequestData
 {
     std::string roomId;
     std::string username;
-    unsigned short gamePort = 0;
 };
 
 struct JoinRoomResponseData
@@ -110,7 +110,6 @@ struct LobbyPlayerInfo
     int playerId = -1;
     std::string username;
     std::string ip;
-    unsigned short gamePort = 0;
     bool isHost = false;
 };
 
@@ -128,7 +127,25 @@ struct StartGameData
 {
     std::string roomId;
     int playerCount = 0;
+    std::string gameServerIp;
+    unsigned short gameServerUdpPort = 0;
     std::vector<LobbyPlayerInfo> players;
+};
+
+// sala para el UDP
+struct SessionStartData
+{
+    std::string roomId;
+    int playerCount = 0;
+    std::vector<LobbyPlayerInfo> players;
+};
+
+// respuesta del UDP
+struct SessionStartResponseData
+{
+    bool success = false;
+    std::string roomId;
+    std::string message;
 };
 
 struct Result {
@@ -150,19 +167,12 @@ struct ErrorMessageData
     std::string message;
 };
 
-struct RankingUpdateData
-{
-    std::string roomId;
-    std::vector<int> placementOrder; // orden de jugadores
-};
-
 // LobbyPlayerInfo
 inline sf::Packet& operator<<(sf::Packet& packet, const LobbyPlayerInfo& data)
 {
     packet << data.playerId
         << data.username
         << data.ip
-        << data.gamePort
         << data.isHost;
     return packet;
 }
@@ -172,7 +182,6 @@ inline sf::Packet& operator>>(sf::Packet& packet, LobbyPlayerInfo& data)
     packet >> data.playerId
         >> data.username
         >> data.ip
-        >> data.gamePort
         >> data.isHost;
     return packet;
 }
@@ -240,13 +249,13 @@ inline sf::Packet& operator>>(sf::Packet& packet, RegisterResponseData& data)
 // CreateRoomRequestData
 inline sf::Packet& operator<<(sf::Packet& packet, const CreateRoomRequestData& data)
 {
-    packet << data.roomId << data.username << data.gamePort;
+    packet << data.roomId << data.username;
     return packet;
 }
 
 inline sf::Packet& operator>>(sf::Packet& packet, CreateRoomRequestData& data)
 {
-    packet >> data.roomId >> data.username >> data.gamePort;
+    packet >> data.roomId >> data.username;
     return packet;
 }
 
@@ -266,13 +275,13 @@ inline sf::Packet& operator>>(sf::Packet& packet, CreateRoomResponseData& data)
 // JoinRoomRequestData
 inline sf::Packet& operator<<(sf::Packet& packet, const JoinRoomRequestData& data)
 {
-    packet << data.roomId << data.username << data.gamePort;
+    packet << data.roomId << data.username;
     return packet;
 }
 
 inline sf::Packet& operator>>(sf::Packet& packet, JoinRoomRequestData& data)
 {
-    packet >> data.roomId >> data.username >> data.gamePort;
+    packet >> data.roomId >> data.username;
     return packet;
 }
 
@@ -309,28 +318,50 @@ sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data);
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data);
 sf::Packet& operator>>(sf::Packet& packet, StartGameData& data);
 
-// RankingUpdateData
-inline sf::Packet& operator<<(sf::Packet& packet, const RankingUpdateData& data)
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartData& data);
+sf::Packet& operator>>(sf::Packet& packet, SessionStartData& data);
+sf::Packet& operator<<(sf::Packet& packet, const SessionStartResponseData& data);
+sf::Packet& operator>>(sf::Packet& packet, SessionStartResponseData& data);
+
+// Launcher / verificacion de mapa
+struct MapCheckData
 {
-    packet << data.roomId;
-    packet << static_cast<int>(data.placementOrder.size());
-    for (int playerId : data.placementOrder)
-    {
-        packet << playerId;
-    }
-    return packet;
+    std::string version;
+};
+
+struct MapStatusData
+{
+    bool upToDate = false;
+};
+
+struct MapResponseData
+{
+    std::string version;
+    std::string mapContent;
+};
+
+inline sf::Packet& operator<<(sf::Packet& packet, const MapCheckData& data)
+{
+    return packet << data.version;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, MapCheckData& data)
+{
+    return packet >> data.version;
+}
+inline sf::Packet& operator<<(sf::Packet& packet, const MapStatusData& data)
+{
+    return packet << data.upToDate;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, MapStatusData& data)
+{
+    return packet >> data.upToDate;
+}
+inline sf::Packet& operator<<(sf::Packet& packet, const MapResponseData& data)
+{
+    return packet << data.version << data.mapContent;
+}
+inline sf::Packet& operator>>(sf::Packet& packet, MapResponseData& data)
+{
+    return packet >> data.version >> data.mapContent;
 }
 
-inline sf::Packet& operator>>(sf::Packet& packet, RankingUpdateData& data)
-{
-    int size = 0;
-    packet >> data.roomId >> size;
-    data.placementOrder.clear();
-    for (int i = 0; i < size; ++i)
-    {
-        int playerId;
-        packet >> playerId;
-        data.placementOrder.push_back(playerId);
-    }
-    return packet;
-}

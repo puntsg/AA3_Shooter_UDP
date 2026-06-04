@@ -8,9 +8,11 @@
 #include "LobbyScene.h"
 #include "LoginScene.h"
 #include "RankingScene.h"
+#include "LauncherManager.h"
 
 int main()
 {
+    LauncherManager::RunLauncher();
     LoginScene* loginScene = new LoginScene();
     GameScene* gameScene = new GameScene();
     RankingScene* rankingScene = new RankingScene();
@@ -27,8 +29,6 @@ int main()
     {
         //return -1;
     }
-
-    unsigned short gamePort = 56000;
 
     sf::Clock dtClock;
     while (SM.window.isOpen())

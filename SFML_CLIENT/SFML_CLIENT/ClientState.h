@@ -10,29 +10,41 @@ struct ClientState
     int playerId = -1;
     std::string nickname = "";
     std::string savedPassword = "";
-    unsigned short myGamePort = 0;
+    std::string authMessage = "";
+    bool authMessageIsError = false;
 
     // Estado de la sala
     std::string currentRoomId = "";
     bool isHost = false;
     bool isWaitingInRoom = false;
+    bool isSearchingMatch = false;
+    bool searchingRanked = false;
 
     // Estado de partida
     bool hasGameStarted = false;
-
-    // Ranking pendiente al terminar partida P2P
-    bool hasPendingResult = false;
-    GameResultData pendingGameResult;
+    std::string gameServerIp = "";
+    unsigned short gameServerUdpPort = 0;
 
     // Jugadores actuales de la sala
     std::vector<LobbyPlayerInfo> roomPlayers;
     std::vector<RankingData> ranking;
+    bool rankingLoading = false;
+    bool rankingReceived = false;
+    bool rankingMessageIsError = false;
+    std::string rankingMessage = "";
 
-    void ResetRoomState();
+    // Estado UDP del juego 
+    std::vector<TransformData>  incomingTransforms;  // ultima pos recibida por jugador
+    bool             hasShootReplicate = false;
+    ShootReplicateData lastShootReplicate;
+    bool             hasPlayerHit = false;
+    PlayerHitData    lastPlayerHit;
+    bool             hasTaunt = false;
+    int              tauntPlayerId = -1;
+    bool             hasEndgame = false;
+    EndgameData      endgameData;
 
-    void ResetAll();
+    void ResetRankingState();
 
     inline bool IsLoggedIn() const {return playerId != -1 && !nickname.empty();}
-
-    inline bool IsInRoom() const { return !currentRoomId.empty();}
 };

@@ -7,15 +7,24 @@ namespace Config
     {
         const int  WIDTH = 800;
         const int  HEIGHT = 600;
-        inline const char* NAME = "Conecta3 Cliente";
+        inline const char* NAME = "shotgame Cliente";
         const int  FPS = 60;
     }
 
     namespace Connection
     {
-        inline const char* SERVER_IP = "83.41.62.11";
-        const unsigned short SERVER_PORT = 55000;
-        const unsigned short GAME_PORT = 56000;
+        //CASA IU
+        //inline const char* SERVER_IP     = "79.152.44.136"; // IP pública del router (internet)
+        //inline const char* SERVER_IP_LAN = "192.168.1.45";  // IP local del PC servidor (LAN)
+        //Localhost
+        //inline const char* SERVER_IP     = "127.0.0.1"; // IP pública del router (internet)
+        //inline const char* SERVER_IP_LAN = "127.0.0.1";  // IP local del PC servidor (LAN)
+        //Classe
+        inline const char* SERVER_IP = "127.0.0.1"; 
+        inline const char* SERVER_IP_LAN = "127.0.0.1";
+
+        const unsigned short SERVER_PORT = 55001;
+        const unsigned short GAME_PORT   = 55002;
 
     }
 
@@ -25,6 +34,22 @@ namespace Config
         inline const char* FONT_PATH_FALLBACK = "C:/Windows/Fonts/arial.ttf";
     }
 
+    // Parametros del shooter (partida)
+    namespace Gameplay
+    {
+        // Spawns. OJO: deben coincidir con GameSession.h del ServerUDP.
+        const float P1_SPAWN_X = 96.f,  P1_SPAWN_Y = 256.f;
+        const float P2_SPAWN_X = 576.f, P2_SPAWN_Y = 256.f;
+
+        // Sprite / animacion (hoja newDuck.png)
+        const int   FRAME_W = 49;
+        const int   FRAME_H = 65;
+        const float SPRITE_SCALE = 0.3f;
+
+        // Bala
+        const float BULLET_MUZZLE_OFFSET = 16.f; // px por delante del jugador al disparar
+    }
+
     namespace Game
     {
         const short   GRID_COLUMNS = 6;
@@ -32,7 +57,6 @@ namespace Config
         const short   CELL_SIZE = 90;
         const float MAX_TURN_TIME = 20.0f;
         const int   DEFAULT_SCORE = 1000;
-        inline const char* DEFAULT_ROOM = "test_room";
         const int   WIN_COUNT = 3;
         const float HUD_TURN_X = 20.f;
         const float HUD_TURN_Y = 20.f;
@@ -94,11 +118,11 @@ namespace Config
 		const float CREATE_BUTTON_X = 330.f;
 		const float CREATE_BUTTON_Y = 250.f;
 		const float RANKING_BUTTON_X = 330.f;
-		const float RANKING_BUTTON_Y = 400.f;
+		const float RANKING_BUTTON_Y = 455.f;
 		const float BUTTON_WIDTH = 140.f;
 		const float BUTTON_HEIGHT = 45.f;
         const float STATUS_X = 230.f;
-        const float STATUS_Y = 380.f;
+        const float STATUS_Y = 410.f;
         const float ROOM_INFO_X = 20.f;
         const float ROOM_INFO_Y = 20.f;
         const float BUTTON_PADDING = 10.f;
@@ -119,8 +143,9 @@ namespace Config
 }
 
 namespace GameConstants{
-    namespace Health {
-        const short INITIAL_LIFES = 3;
-        const short INITIAL_HEALTH = 3;
+    namespace Player {
+        const float GRAVITY_MULT = 10;
+        const float JUMP_FORCE = 115;
+        const float SPEED = 200;
     }
 }

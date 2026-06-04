@@ -19,6 +19,10 @@ private:
     Button* loginButton;
     Button* signinButton;
     Button* closeButton;
+    std::string pendingLoginUser;
+
+    bool ValidateCredentials(const std::string& user, const std::string& pass);
+    bool EnsureServerConnection();
 
 public:
     LoginScene();

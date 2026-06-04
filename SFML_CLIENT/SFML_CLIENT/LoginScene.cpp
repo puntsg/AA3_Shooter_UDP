@@ -23,20 +23,28 @@ LoginScene::LoginScene()
     signinButton->onClick = [this]() {
         std::string user = usernameInputfield->getText();
         std::string pass = passwordInputfield->getText();
+
+        if (!ValidateCredentials(user, pass) || !EnsureServerConnection())
+        {
+            return;
+        }
+
         NM.SendRegisterRequest(user, pass);
         };
     loginButton->onClick = [this]() {
         std::string user = usernameInputfield->getText();
         std::string pass = passwordInputfield->getText();
-        
-        // Guardar credenciales si no estan vacias
-        if (!user.empty() && !pass.empty()) {
-            NM.GetClientState().nickname = user;
+
+        if (!ValidateCredentials(user, pass) || !EnsureServerConnection())
+        {
+            return;
+        }
+
+        pendingLoginUser = user;
+        if (NM.SendLoginRequest(user, pass))
+        {
             NM.GetClientState().savedPassword = pass;
         }
-        
-        if (!NM.IsConnected()) NM.ConnectToServer();
-        NM.SendLoginRequest(user, pass);
     };
 }
 
@@ -61,6 +69,35 @@ void LoginScene::OnEnter()
     }
 }
 
+bool LoginScene::ValidateCredentials(const std::string& user, const std::string& pass)
+{
+    if (user.empty() || pass.empty())
+    {
+        NM.GetClientState().authMessage = "Usuario y password son obligatorios.";
+        NM.GetClientState().authMessageIsError = true;
+        return false;
+    }
+
+    return true;
+}
+
+bool LoginScene::EnsureServerConnection()
+{
+    if (NM.IsConnected())
+    {
+        return true;
+    }
+
+    if (!NM.ConnectToServer())
+    {
+        NM.GetClientState().authMessage = "No se pudo conectar con el servidor.";
+        NM.GetClientState().authMessageIsError = true;
+        return false;
+    }
+
+    return true;
+}
+
 void LoginScene::HandleEvent(const sf::Event& event)
 {
     closeButton->handleEvent(event);
@@ -74,7 +111,14 @@ void LoginScene::Update(float dt)
 {
     NM.NetworkFetch();
     if (NM.GetClientState().IsLoggedIn())
+    {
+        if (!pendingLoginUser.empty())
+        {
+            NM.GetClientState().nickname = pendingLoginUser;
+            pendingLoginUser.clear();
+        }
         SM.SetNextScene("LobbyScene");
+    }
 }
 
 void LoginScene::Render(sf::RenderWindow& window)
@@ -84,6 +128,17 @@ void LoginScene::Render(sf::RenderWindow& window)
     passwordInputfield->Draw(window);
     loginButton->Draw(window);
     signinButton->Draw(window);
+
+    const ClientState& state = NM.GetClientState();
+    if (!state.authMessage.empty())
+    {
+        sf::Text messageText(font);
+        messageText.setCharacterSize(Config::UI::FONT_SIZE_NORMAL);
+        messageText.setPosition({ Config::Login::INPUT_USERNAME_X, Config::Login::REGISTER_BUTTON_Y + 40.f });
+        messageText.setString(state.authMessage);
+        messageText.setFillColor(state.authMessageIsError ? sf::Color::Red : sf::Color::Green);
+        window.draw(messageText);
+    }
 }
 
 void LoginScene::OnExit()

@@ -4,7 +4,7 @@
 #include <string>
 #include "Room.h"
 
-#define MAX_PLAYERS 4
+#define MAX_PLAYERS 2
 
 class RoomManager
 {
@@ -19,7 +19,6 @@ public:
     Room* GetRoomByPlayerId(int playerId);
 
     bool RoomExists(const std::string& roomId) const;
-    bool IsRoomFull(const std::string& roomId) const;
 
     void PrintRooms() const;
 

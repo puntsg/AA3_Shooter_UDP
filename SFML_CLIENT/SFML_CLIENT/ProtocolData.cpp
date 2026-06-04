@@ -2,16 +2,16 @@
 
 sf::Packet& operator<<(sf::Packet& packet, const RankingResponseData& data)
 {
-    packet << static_cast<int>(data.entries.size());
-    for (int i = 0; i < (int)data.entries.size(); i++)
-        packet << data.entries[i];
+    packet << data.success << data.message << static_cast<int>(data.entries.size());
+    for (const RankingData& entry : data.entries)
+        packet << entry;
     return packet;
 }
 
 sf::Packet& operator>>(sf::Packet& packet, RankingResponseData& data)
 {
     int count = 0;
-    packet >> count;
+    packet >> data.success >> data.message >> count;
     data.entries.resize(count);
     for (int i = 0; i < count; i++)
         packet >> data.entries[i];
@@ -32,7 +32,7 @@ sf::Packet& operator>>(sf::Packet& packet, Result& data)
 
 sf::Packet& operator<<(sf::Packet& packet, const GameResultData& data)
 {
-    packet << static_cast<int>(data.results.size());
+    packet << data.roomId << static_cast<int>(data.results.size());
     for (const Result& r : data.results)
         packet << r;
 
@@ -42,7 +42,7 @@ sf::Packet& operator<<(sf::Packet& packet, const GameResultData& data)
 sf::Packet& operator>>(sf::Packet& packet, GameResultData& data)
 {
     int count = 0;
-    packet >> count;
+    packet >> data.roomId >> count;
     data.results.resize(count);
     for (int i = 0; i < count; ++i)
         packet >> data.results[i];
@@ -88,7 +88,9 @@ sf::Packet& operator>>(sf::Packet& packet, RoomStatusUpdateData& data)
 sf::Packet& operator<<(sf::Packet& packet, const StartGameData& data)
 {
     packet << data.roomId
-        << data.playerCount;
+        << data.playerCount
+        << data.gameServerIp
+        << data.gameServerUdpPort;
 
     packet << static_cast<int>(data.players.size());
     for (const LobbyPlayerInfo& player : data.players)
@@ -105,6 +107,8 @@ sf::Packet& operator>>(sf::Packet& packet, StartGameData& data)
 
     packet >> data.roomId
         >> data.playerCount
+        >> data.gameServerIp
+        >> data.gameServerUdpPort
         >> vectorSize;
 
     data.players.clear();

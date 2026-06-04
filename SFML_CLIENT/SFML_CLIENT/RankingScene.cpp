@@ -11,7 +11,11 @@ RankingScene::RankingScene()
 void RankingScene::BuildUI()
 {
     backButton = std::make_unique<Button>(
-        200.f, 500.f, 400.f, 50.f, font
+        Config::Ranking::BACK_BUTTON_X,
+        Config::Ranking::BACK_BUTTON_Y,
+        Config::Ranking::BACK_BUTTON_W,
+        Config::Ranking::BACK_BUTTON_H,
+        font
     );
     backButton->SetText("Volver al Lobby");
     backButton->onClick = [this]() {
@@ -23,6 +27,9 @@ void RankingScene::OnEnter()
 {
     BuildUI();
     rankingData.clear();
+    NM.GetClientState().ResetRankingState();
+    NM.GetClientState().rankingLoading = true;
+    NM.GetClientState().rankingMessage = "Cargando ranking...";
     NM.SendRankingRequest(NM.GetClientState().nickname);
 }
 
@@ -34,11 +41,16 @@ void RankingScene::HandleEvent(const sf::Event& event)
 void RankingScene::Update(float dt)
 {
     NM.NetworkFetch();
-    auto& ranking = NM.GetClientState().ranking;
-    if (!ranking.empty() && rankingData.empty())
+    ClientState& state = NM.GetClientState();
+    std::vector<RankingData>& ranking = state.ranking;
+    if (state.rankingReceived)
     {
-        for (int i = 0; i < (int)ranking.size(); i++)
-            rankingData.push_back({ ranking[i].playerName, ranking[i].score });
+        rankingData.clear();
+        rankingData.reserve(ranking.size());
+        for (const RankingData& entry : ranking)
+            rankingData.emplace_back(entry.playerName, entry.score);
+
+        state.rankingReceived = false;
     }
 }
 
@@ -53,7 +65,7 @@ void RankingScene::Render(sf::RenderWindow& window)
 
     float yPos = Config::Ranking::TEXT_Y;
     int position = 1;
-    for (const auto& entry : rankingData)
+    for (const std::pair<std::string, int>& entry : rankingData)
     {
         sf::Text rankText(font);
         rankText.setCharacterSize(Config::UI::FONT_SIZE_NORMAL);
@@ -65,6 +77,17 @@ void RankingScene::Render(sf::RenderWindow& window)
 
         yPos += Config::Ranking::SPACING_Y;
         position++;
+    }
+
+    const ClientState& state = NM.GetClientState();
+    if (rankingData.empty() && !state.rankingMessage.empty())
+    {
+        sf::Text messageText(font);
+        messageText.setCharacterSize(Config::UI::FONT_SIZE_NORMAL);
+        messageText.setPosition({ Config::Ranking::TEXT_X, Config::Ranking::TEXT_Y });
+        messageText.setString(state.rankingMessage);
+        messageText.setFillColor(state.rankingMessageIsError ? sf::Color::Red : sf::Color::White);
+        window.draw(messageText);
     }
 
     if (backButton) backButton->Draw(window);
